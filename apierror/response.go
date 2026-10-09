@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 )
 
-// FieldErrorObject is one entry of an error object's errors list.
+// One field that failed validation.
 type FieldErrorObject struct {
 	// The request field that failed, e.g. "lines[2].quantity". Null when the failure is not tied to one field.
 	Param *string `json:"param"`
@@ -15,7 +15,9 @@ type FieldErrorObject struct {
 	Message string `json:"message"`
 }
 
-// ErrorObject is the forge.1 error object: the only part of an error a client sees. Bulk rows and job results carry this same object.
+// What went wrong with a request.
+//
+// Bulk rows and async job results report their failures with this same object.
 type ErrorObject struct {
 	// The class of error.
 	Type Type `json:"type"`
@@ -84,7 +86,7 @@ func (ErrorObject) SchemaExample() any {
 	}
 }
 
-// Response is the body of every error response: {"error": {...}}.
+// The body of every error response.
 type Response struct {
 	// What went wrong.
 	Error ErrorObject `json:"error"`

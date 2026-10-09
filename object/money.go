@@ -6,7 +6,9 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// Money is an amount in one currency. The amount is a decimal string, so no client loses precision parsing it as a float; the currency is a lowercase ISO 4217 code. It has no id, object or timestamps and is written only through its parent.
+// An amount of money in one currency.
+//
+// The amount is a decimal string, so no client loses precision parsing it as a float.
 type Money struct {
 	// The amount, as a decimal string such as "12.50".
 	Amount string `json:"amount" validate:"required,decimal"`

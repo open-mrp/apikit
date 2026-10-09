@@ -13,7 +13,7 @@ type ListRequest struct {
 	Limit int32 `query:"limit" default:"25" validate:"min=1,max=100"`
 }
 
-// PageInfo says where a page sits in its result set and how to reach its neighbors.
+// Where a page sits in its result set, and how to reach the pages around it.
 //
 // Follow the URLs rather than assembling cursors: for a list endpoint the URL repeats the original query string with only the cursor swapped, so the same filters, search and page size carry over.
 type PageInfo struct {
@@ -27,7 +27,7 @@ type PageInfo struct {
 	HasPreviousPage bool `json:"has_previous_page"`
 }
 
-// List is one page of resources.
+// A single page of resources, with what is needed to page through the rest.
 type List[T any] struct {
 	// Always "list".
 	Object Type `json:"object" validate:"required,enum=list"`

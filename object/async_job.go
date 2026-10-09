@@ -51,7 +51,9 @@ func (s AsyncJobStatus) IsFinal() bool {
 	return s == AsyncJobStatusCompleted || s == AsyncJobStatusFailed || s == AsyncJobStatusCanceled
 }
 
-// AsyncJob is the work a long-running action accepted with 202. The caller polls it at the Location the 202 named until its status is final. R is the app's reference to a record, such as an {id, object} stub. An app embeds AsyncJob in its own type to add fields such as who requested the work.
+// Work a long-running action accepted to run in the background.
+//
+// Poll it at the URL in the 202 response's `Location` header until `status` is `completed`, `failed` or `canceled`.
 type AsyncJob[R any] struct {
 	// Async job ID.
 	ID string `json:"id" validate:"required"`
@@ -110,7 +112,7 @@ func (AsyncJobResultStatus) EnumValues() []string {
 	return []string{string(AsyncJobResultCreated), string(AsyncJobResultUpdated), string(AsyncJobResultFailed)}
 }
 
-// AsyncJobResult accounts for one submitted row: the resource it produced, or why it was rejected.
+// What became of one submitted row: the resource it produced, or why it was rejected.
 type AsyncJobResult[R any] struct {
 	// Always "async_job_result".
 	Object Type `json:"object" validate:"required,enum=async_job_result"`

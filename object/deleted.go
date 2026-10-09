@@ -1,6 +1,6 @@
 package object
 
-// Deleted is the body of a successful delete: 200 with {id, object, deleted: true}, never an empty body or a 204.
+// Confirms that a resource was deleted.
 type Deleted struct {
 	// The ID of the deleted resource.
 	ID string `json:"id" validate:"required"`
