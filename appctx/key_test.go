@@ -118,6 +118,13 @@ func keyIsolationCases() []keyIsolationCase {
 			get:   func(ctx context.Context) bool { _, ok := GetPropagatedClientIP(ctx); return ok },
 		},
 		{
+			name:  "request_log",
+			key:   "request_log",
+			value: &RequestLog{ID: "rql_1"},
+			with:  func(ctx context.Context) context.Context { return WithRequestLog(ctx, &RequestLog{ID: "rql_1"}) },
+			get:   func(ctx context.Context) bool { _, ok := GetRequestLog(ctx); return ok },
+		},
+		{
 			name:  "api_version",
 			key:   "api_version",
 			value: version.APIVersion{},
