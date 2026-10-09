@@ -1,0 +1,13 @@
+# Test binaries and coverage
+*.test
+*.out
+coverage.*
+
+# Local workspace linking against a sibling checkout
+go.work
+go.work.sum
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
