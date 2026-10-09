@@ -218,6 +218,28 @@ func (r *Router) GetRoutes() []any {
 	return routes
 }
 
+// Match returns the pattern of the route a request to method and path would reach, and whether it is public, preferring a literal segment over a parameter as serving does.
+func (r *Router) Match(method, path string) (pattern string, public bool, ok bool) {
+	var best *Route
+	for i := range r.routes {
+		route := &r.routes[i]
+		if route.Method != method {
+			continue
+		}
+		matches := route.Path == path
+		if !matches && route.PathPattern != nil {
+			matches = extractPathParams(route.PathPattern, route.PathParams, path) != nil
+		}
+		if matches && (best == nil || len(route.PathParams) < len(best.PathParams)) {
+			best = route
+		}
+	}
+	if best == nil {
+		return "", false, false
+	}
+	return best.Path, best.IsPublic, true
+}
+
 func collectMethods(handlers map[string]http.HandlerFunc) []string {
 	methods := make([]string, 0, len(handlers))
 	for m := range handlers {

@@ -86,3 +86,21 @@ func TestRouter_PathPattern_OPTIONS(t *testing.T) {
 		t.Error("expected middleware to be applied to OPTIONS request for pattern route")
 	}
 }
+
+func TestMatch(t *testing.T) {
+	t.Parallel()
+	r := NewRouter()
+	noop := func(http.ResponseWriter, *http.Request) {}
+	r.HandleEndpoint(http.MethodGet, "/v1/orders/{id}", noop, false)
+	r.HandleEndpoint(http.MethodGet, "/v1/orders/current", noop, true)
+
+	if pattern, public, ok := r.Match(http.MethodGet, "/v1/orders/or_1"); !ok || pattern != "/v1/orders/{id}" || public {
+		t.Errorf("param route: %q %v %v", pattern, public, ok)
+	}
+	if pattern, public, ok := r.Match(http.MethodGet, "/v1/orders/current"); !ok || pattern != "/v1/orders/current" || !public {
+		t.Errorf("literal route: %q %v %v", pattern, public, ok)
+	}
+	if _, _, ok := r.Match(http.MethodPost, "/v1/orders/or_1"); ok {
+		t.Error("matched the wrong method")
+	}
+}
