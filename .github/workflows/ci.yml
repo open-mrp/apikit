@@ -52,3 +52,6 @@ jobs:
 
       - name: Gosec
         run: go run github.com/securego/gosec/v2/cmd/gosec@v${GOSEC_VERSION} -exclude-generated ./...
+
+      - name: Transaction audit
+        run: go run ./cmd/txaudit -root .
