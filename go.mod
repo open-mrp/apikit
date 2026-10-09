@@ -5,6 +5,7 @@ go 1.27.0
 require (
 	github.com/alicebob/miniredis/v2 v2.39.0
 	github.com/go-playground/validator/v10 v10.30.5
+	github.com/matoous/go-nanoid/v2 v2.1.0
 	github.com/redis/go-redis/v9 v9.22.0
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/trace v1.46.0
