@@ -85,3 +85,17 @@ func TestExpandDocumentationRoute_SubstitutesPathParams(t *testing.T) {
 		t.Errorf("expandDocumentationRoute() = %q, want %q", got, want)
 	}
 }
+
+func TestRouteSegmentBefore(t *testing.T) {
+	t.Parallel()
+	for route, want := range map[string]string{
+		"/v1/catalog/widgets/{id}":                   "widgets",
+		"/v1/catalog/widgets/{id}/attributes/{id}":   "widgets",
+		"/v1/catalog/widgets/{widget_id}/parts/{id}": "parts",
+		"/{id}": "",
+	} {
+		if got := RouteSegmentBefore(route, "{id}"); got != want {
+			t.Errorf("RouteSegmentBefore(%q) = %q, want %q", route, got, want)
+		}
+	}
+}

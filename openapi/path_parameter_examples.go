@@ -77,7 +77,8 @@ func normalizePathExampleValue(val any) any {
 	return val
 }
 
-func routeSegmentBeforeParam(route, param string) string {
+// RouteSegmentBefore returns the path segment just before param in route, such as "widgets" for "{id}" in "/v1/catalog/widgets/{id}": the resource a generic {id} names, for an Examples.PathParam hook to pick a sample ID by.
+func RouteSegmentBefore(route, param string) string {
 	idx := strings.Index(route, param)
 	if idx <= 0 {
 		return ""
