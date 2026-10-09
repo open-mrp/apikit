@@ -137,6 +137,12 @@ func (e *APIError) Unwrap() error {
 	return e.Internal
 }
 
+// WithParam names the parameter the error is about and returns e, for a caller that learns the parameter after the error was built.
+func (e *APIError) WithParam(param string) *APIError {
+	e.Param = param
+	return e
+}
+
 // Status returns the HTTP status of the error's code.
 func (e *APIError) Status() int {
 	return e.Code.Status()
