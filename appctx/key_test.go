@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/url"
 	"testing"
+
+	"github.com/open-mrp/apikit/version"
 )
 
 // Mirrors the private key types other packages declare: same underlying string, different named type.
@@ -114,6 +116,13 @@ func keyIsolationCases() []keyIsolationCase {
 			value: "198.51.100.7",
 			with:  func(ctx context.Context) context.Context { return WithPropagatedClientIP(ctx, "198.51.100.7") },
 			get:   func(ctx context.Context) bool { _, ok := GetPropagatedClientIP(ctx); return ok },
+		},
+		{
+			name:  "api_version",
+			key:   "api_version",
+			value: version.APIVersion{},
+			with:  func(ctx context.Context) context.Context { return WithAPIVersion(ctx, version.APIVersion{}) },
+			get:   func(ctx context.Context) bool { _, ok := GetAPIVersionFromContext(ctx); return ok },
 		},
 	}
 }
