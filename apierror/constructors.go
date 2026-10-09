@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// NewValidationError is a 422 listing every failing field. Collect all failures before returning one, so the client can fix them in a single round trip.
+// NewValidationError is a 422 listing every failing field; its param is the first of them. Collect all failures before returning one, so the client can fix them in a single round trip.
 func NewValidationError(message string, errs ...FieldError) *APIError {
 	return New(CodeValidationFailed, message, WithFieldErrors(errs...))
 }
@@ -25,24 +25,24 @@ func NewInvalidFormatError(param, message string) *APIError {
 	return NewFieldError(param, CodeInvalidFormat, message)
 }
 
-// NewParameterMissingError is a 400 for a required query or path parameter that was not sent. errors stays empty (it lists body fields on a 422), so the message names the parameter.
-func NewParameterMissingError(message string) *APIError {
-	return New(CodeParameterMissing, message)
+// NewParameterMissingError is a 400 for a required query or path parameter that was not sent.
+func NewParameterMissingError(param, message string) *APIError {
+	return New(CodeParameterMissing, message, WithParam(param))
 }
 
-// NewParameterInvalidError is a 400 for a query or path parameter, or a body, that could not be parsed. The message names the parameter.
-func NewParameterInvalidError(message string) *APIError {
-	return New(CodeParameterInvalid, message)
+// NewParameterInvalidError is a 400 for a query or path parameter, or a body, that could not be parsed.
+func NewParameterInvalidError(param, message string) *APIError {
+	return New(CodeParameterInvalid, message, WithParam(param))
 }
 
-// NewParameterUnknownError is a 400 for a parameter or field the endpoint does not accept. The message names it.
-func NewParameterUnknownError(message string) *APIError {
-	return New(CodeParameterUnknown, message)
+// NewParameterUnknownError is a 400 for a parameter or field the endpoint does not accept.
+func NewParameterUnknownError(param, message string) *APIError {
+	return New(CodeParameterUnknown, message, WithParam(param))
 }
 
-// NewParametersExclusiveError is a 400 for two parameters that cannot be combined. The message names both.
-func NewParametersExclusiveError(message string) *APIError {
-	return New(CodeParametersExclusive, message)
+// NewParametersExclusiveError is a 400 for two parameters that cannot be combined. param is the one the caller should drop.
+func NewParametersExclusiveError(param, message string) *APIError {
+	return New(CodeParametersExclusive, message, WithParam(param))
 }
 
 // NewAuthenticationError is a 401 for missing or wrong credentials.
@@ -65,14 +65,19 @@ func NewNotFoundError(message string) *APIError {
 	return New(CodeResourceNotFound, message)
 }
 
-// NewExistsError is a 409 for a duplicate of a unique value. The message names the field holding it.
-func NewExistsError(message string) *APIError {
-	return New(CodeResourceExists, message)
+// NewExistsError is a 409 for a duplicate of a unique value. param names the field holding it.
+func NewExistsError(param, message string) *APIError {
+	return New(CodeResourceExists, message, WithParam(param))
 }
 
 // NewConflictError is a 409 for a change the resource's current state does not allow.
 func NewConflictError(message string) *APIError {
 	return New(CodeResourceConflict, message)
+}
+
+// NewConflictErrorWithParam is a 409 for a change one field's value does not allow, such as a username already taken.
+func NewConflictErrorWithParam(param, message string) *APIError {
+	return New(CodeResourceConflict, message, WithParam(param))
 }
 
 // NewInUseError is a 409 for deleting a resource other records still reference. The message should point to archiving.
@@ -145,12 +150,12 @@ func NewClientClosedRequestError() *APIError {
 
 // NewAPIVersionRequiredError is a 400 for a request without the version header.
 func NewAPIVersionRequiredError(header, latest string) *APIError {
-	return New(CodeAPIVersionRequired, fmt.Sprintf("The %s header is required. The latest version is %s.", header, latest))
+	return New(CodeAPIVersionRequired, fmt.Sprintf("The %s header is required. The latest version is %s.", header, latest), WithParam(header))
 }
 
 // NewAPIVersionInvalidError is a 400 for a version that does not exist.
-func NewAPIVersionInvalidError(requested string, supported []string) *APIError {
-	return New(CodeAPIVersionInvalid, fmt.Sprintf("API version %q does not exist. Supported versions: %s.", requested, strings.Join(supported, ", ")))
+func NewAPIVersionInvalidError(header, requested string, supported []string) *APIError {
+	return New(CodeAPIVersionInvalid, fmt.Sprintf("API version %q does not exist. Supported versions: %s.", requested, strings.Join(supported, ", ")), WithParam(header))
 }
 
 // NewAPIVersionTooOldError is a 400 for an endpoint added after the requested version.

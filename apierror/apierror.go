@@ -1,6 +1,6 @@
 // Package apierror defines the error every API response and service call reports.
 //
-// An APIError separates what the client sees (the forge.1 error object: type, code, message, is_transient, errors, doc_url) from what only logs and traces see (InternalMessage, Internal, Stack). Everything fixed about a code, such as its HTTP status and whether it is transient, comes from the code's registered Spec, so an error cannot be built with a status that disagrees with its code.
+// An APIError separates what the client sees (the forge.1 error object: type, code, message, param, is_transient, errors, doc_url) from what only logs and traces see (InternalMessage, Internal, Stack). Everything fixed about a code, such as its HTTP status and whether it is transient, comes from the code's registered Spec, so an error cannot be built with a status that disagrees with its code.
 package apierror
 
 import (
@@ -32,6 +32,8 @@ type APIError struct {
 	Type Type
 	// PublicMessage is returned to the client.
 	PublicMessage string
+	// Param names the request parameter or field the error is about, such as a malformed query parameter or a duplicate value. Empty when it is not about one. New sets it to the first failing field when Errors is given without it.
+	Param string
 	// Errors lists every failing field of a validation_failed error, and is empty otherwise.
 	Errors []FieldError
 	// IsTransient is the code's transience, copied from its Spec.
@@ -59,6 +61,11 @@ func WithInternalMessage(msg string) Option {
 	return func(e *APIError) { e.InternalMessage = msg }
 }
 
+// WithParam names the request parameter or field the error is about.
+func WithParam(param string) Option {
+	return func(e *APIError) { e.Param = param }
+}
+
 // WithFieldErrors attaches the failing fields of a validation error.
 func WithFieldErrors(errs ...FieldError) Option {
 	return func(e *APIError) { e.Errors = append(e.Errors, errs...) }
@@ -83,6 +90,9 @@ func New(code Code, publicMessage string, opts ...Option) *APIError {
 	}
 	for _, opt := range opts {
 		opt(e)
+	}
+	if e.Param == "" && len(e.Errors) > 0 {
+		e.Param = e.Errors[0].Param
 	}
 	e.InternalMessage = nestInternalMessage(e.Internal, e.InternalMessage)
 	if spec.Status >= 500 {

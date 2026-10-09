@@ -23,6 +23,8 @@ type ErrorObject struct {
 	Code Code `json:"code"`
 	// A human-readable explanation of the error.
 	Message string `json:"message"`
+	// The request parameter or field the error is about; on a validation error, the first of errors. Null when the error is not about one.
+	Param *string `json:"param"`
 	// Whether the same request may succeed if retried.
 	IsTransient bool `json:"is_transient"`
 	// Every failing field of a validation error. Empty for other errors.
@@ -75,7 +77,8 @@ func (ErrorObject) SchemaExample() any {
 	return ErrorObject{
 		Type:        TypeInvalidRequest,
 		Code:        CodeValidationFailed,
-		Message:     "1 field is invalid.",
+		Message:     "email must be a valid email address.",
+		Param:       &param,
 		IsTransient: false,
 		Errors:      []FieldErrorObject{{Param: &param, Code: CodeInvalidFormat, Message: "email must be a valid email address."}},
 	}
@@ -103,6 +106,9 @@ func (e *APIError) Object() ErrorObject {
 		Message:     e.PublicMessage,
 		IsTransient: e.IsTransient,
 		Errors:      make([]FieldErrorObject, len(e.Errors)),
+	}
+	if e.Param != "" {
+		obj.Param = &e.Param
 	}
 	for i, fe := range e.Errors {
 		obj.Errors[i] = FieldErrorObject{Code: fe.Code, Message: fe.Message}

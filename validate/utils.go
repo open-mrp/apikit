@@ -364,7 +364,7 @@ func RegisterWrappedTypes(wrappers ...any) {
 
 // Validate runs all struct-tag validations on v and returns a user-facing [apierror.APIError] on failure (nil on success).
 //
-// Body fields that fail are all reported together: a 422 validation_failed with one entry per field in errors, so the client fixes them in one round trip. A failing query, path or header parameter is a malformed request rather than invalid data, so it is reported first, as a 400 naming the parameter in its message.
+// Body fields that fail are all reported together: a 422 validation_failed with one entry per field in errors and param set to the first, so the client fixes them in one round trip. A failing query, path or header parameter is a malformed request rather than invalid data, so it is reported first, as a 400 whose param names it.
 func Validate(v any) *apierror.APIError {
 	err := validate.Struct(v)
 	if err != nil {
@@ -385,7 +385,7 @@ func parseValidationErrors(err error, structValue any) *apierror.APIError {
 		metadata := getFieldMetadata(fieldErr, structValue)
 		message := formatFieldError(fieldErr, structValue)
 		if metadata.source != "field" {
-			return newParameterError(fieldErr.Tag(), message)
+			return newParameterError(fieldErr.Tag(), metadata.name, message)
 		}
 		fields = append(fields, apierror.Field(metadata.name, fieldErrorCode(fieldErr.Tag()), message))
 	}
@@ -409,11 +409,11 @@ func fieldErrorCode(tag string) apierror.Code {
 }
 
 // newParameterError is the 400 for a failing query, path or header parameter.
-func newParameterError(tag, message string) *apierror.APIError {
+func newParameterError(tag, param, message string) *apierror.APIError {
 	if tag == "required" {
-		return apierror.NewParameterMissingError(message)
+		return apierror.NewParameterMissingError(param, message)
 	}
-	return apierror.NewParameterInvalidError(message)
+	return apierror.NewParameterInvalidError(param, message)
 }
 
 // formatFieldError produces a human-readable error message for a single field validation failure. It resolves the field's public name and source (JSON body, query parameter, path parameter, header, cookie) from struct tags, then formats a message appropriate to the validation tag. Supported tags have dedicated templates; unrecognized tags fall back to a generic "'<field>' is invalid (<tag>)" message.

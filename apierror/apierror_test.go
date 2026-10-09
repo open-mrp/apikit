@@ -95,8 +95,11 @@ func TestResponse_forge1Shape(t *testing.T) {
 		t.Fatalf("body = %v, want only an error object", body)
 	}
 
-	if got, want := keys(obj), []string{"code", "doc_url", "errors", "is_transient", "message", "type"}; !slices.Equal(got, want) {
+	if got, want := keys(obj), []string{"code", "doc_url", "errors", "is_transient", "message", "param", "type"}; !slices.Equal(got, want) {
 		t.Errorf("members = %v, want %v", got, want)
+	}
+	if v, has := obj["param"]; !has || v != nil {
+		t.Errorf("param = %v (present %v), want null for an error not about one parameter", v, has)
 	}
 	if obj["code"] != "resource_not_found" || obj["type"] != "invalid_request_error" || obj["message"] != "No widget with ID wdg_123." {
 		t.Errorf("object = %v", obj)
@@ -136,8 +139,31 @@ func TestValidationError_listsEveryField(t *testing.T) {
 	if third := errs[2].(map[string]any); third["param"] != nil {
 		t.Errorf("errors[2].param = %v, want null for a failure not tied to a field", third["param"])
 	}
-	if _, has := obj["param"]; has {
-		t.Error("error object has a top-level param")
+	if obj["param"] != "sku" {
+		t.Errorf("param = %v, want the first failing field", obj["param"])
+	}
+}
+
+func TestParam_namesTheOffendingParameter(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		err  *apierror.APIError
+		want string
+	}{
+		{apierror.NewParameterInvalidError("limit", "limit must be at most 100."), "limit"},
+		{apierror.NewParameterUnknownError("colour", "Unknown parameter colour."), "colour"},
+		{apierror.NewExistsError("sku", "An item with SKU A-1 already exists."), "sku"},
+		{apierror.NewAPIVersionRequiredError("Example-Version", "1.0"), "Example-Version"},
+		{apierror.NewInvalidFormatError("email", "email must be a valid email address."), "email"},
+	} {
+		obj := marshal(t, tc.err.Object())
+		if obj["param"] != tc.want {
+			t.Errorf("%s: param = %v, want %q", tc.err.Code, obj["param"], tc.want)
+		}
+		if tc.err.Status() != http.StatusUnprocessableEntity && len(tc.err.Errors) != 0 {
+			t.Errorf("%s: errors = %v, want empty on a non-422", tc.err.Code, tc.err.Errors)
+		}
 	}
 }
 
@@ -174,7 +200,7 @@ func TestNew_copiesSpec(t *testing.T) {
 		{apierror.NewIdempotencyInProgressError("k1"), http.StatusConflict, apierror.TypeIdempotency, true},
 		{apierror.NewIdempotencyKeyReusedError("k1"), http.StatusUnprocessableEntity, apierror.TypeIdempotency, false},
 		{apierror.NewInUseError("Archive it instead."), http.StatusConflict, apierror.TypeInvalidRequest, false},
-		{apierror.NewParameterUnknownError("Unknown parameter colour."), http.StatusBadRequest, apierror.TypeInvalidRequest, false},
+		{apierror.NewParameterUnknownError("colour", "Unknown parameter colour."), http.StatusBadRequest, apierror.TypeInvalidRequest, false},
 		{apierror.NewInternalError(errors.New("boom"), "loading widget"), http.StatusInternalServerError, apierror.TypeAPI, true},
 		{apierror.NewClientClosedRequestError(), apierror.StatusClientClosedRequest, apierror.TypeAPI, false},
 	} {
@@ -304,7 +330,7 @@ func TestRowErrors_summary(t *testing.T) {
 		t.Fatal("empty RowErrors reports failures")
 	}
 	rows.AddField(0, "sku", apierror.CodeMissingField, "sku is required.")
-	rows.Add(3, apierror.NewExistsError("An item with SKU A-1 already exists."))
+	rows.Add(3, apierror.NewExistsError("sku", "An item with SKU A-1 already exists."))
 
 	if len(rows.Entries()) != 2 || rows.Entries()[1].Index != 3 || rows.Entries()[1].Error.Code != apierror.CodeResourceExists {
 		t.Errorf("entries = %+v", rows.Entries())
@@ -316,7 +342,7 @@ func TestRowErrors_summary(t *testing.T) {
 	}
 	want := []apierror.FieldError{
 		apierror.Field("items[0].sku", apierror.CodeMissingField, "sku is required."),
-		apierror.Field("items[3]", apierror.CodeResourceExists, "An item with SKU A-1 already exists."),
+		apierror.Field("items[3].sku", apierror.CodeResourceExists, "An item with SKU A-1 already exists."),
 	}
 	if !slices.Equal(sum.Errors, want) {
 		t.Errorf("summary errors = %+v, want %+v", sum.Errors, want)

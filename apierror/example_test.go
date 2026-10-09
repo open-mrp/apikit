@@ -33,5 +33,5 @@ func Example() {
 	fmt.Println(string(body))
 	// Output:
 	// 403
-	// {"error":{"type":"invalid_request_error","code":"example_seat_limit_reached","message":"All 5 seats are taken.","is_transient":false,"errors":[],"doc_url":"https://docs.example.com/errors/example_seat_limit_reached","seats":{"limit":5,"used":5}}}
+	// {"error":{"type":"invalid_request_error","code":"example_seat_limit_reached","message":"All 5 seats are taken.","param":null,"is_transient":false,"errors":[],"doc_url":"https://docs.example.com/errors/example_seat_limit_reached","seats":{"limit":5,"used":5}}}
 }

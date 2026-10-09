@@ -49,7 +49,11 @@ func (r *RowErrors) Summary(listParam string) *APIError {
 	for i, err := range r.errs {
 		prefix := listParam + "[" + strconv.Itoa(r.entries[i].Index) + "]"
 		if len(err.Errors) == 0 {
-			fields = append(fields, Field(prefix, err.Code, err.PublicMessage))
+			param := prefix
+			if err.Param != "" {
+				param += "." + err.Param
+			}
+			fields = append(fields, Field(param, err.Code, err.PublicMessage))
 			continue
 		}
 		for _, fe := range err.Errors {

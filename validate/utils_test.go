@@ -1116,6 +1116,9 @@ func TestValidate_ParameterFailureReportedFirst(t *testing.T) {
 	if !strings.Contains(err.PublicMessage, "Query parameter 'limit'") || len(err.Errors) != 0 {
 		t.Errorf("got %q with errors %v", err.PublicMessage, err.Errors)
 	}
+	if err.Param != "limit" {
+		t.Errorf("param = %q, want limit", err.Param)
+	}
 }
 
 // validator reports an unusable argument as an InvalidValidationError rather than field errors.
