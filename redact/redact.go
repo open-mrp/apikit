@@ -1,0 +1,265 @@
+package redact
+
+import (
+	"bytes"
+	"encoding/json"
+	"reflect"
+	"slices"
+	"strings"
+	"sync"
+)
+
+// SensitiveFields collects dot-separated JSON field paths whose `sensitive` tag keeps them out of logs (IsSensitiveTag) on structs reachable from root type typ, and for a map carrying a keyed-map tag (RegisterKeyedMapTag) the path of its matching keys. Root may be a pointer (e.g. *MyRequest); non-struct roots return nil.
+//
+// Embedding without a JSON key name preserves the same path prefix so promoted fields align with encoding/json flattened output.
+func SensitiveFields(typ reflect.Type) map[string]bool {
+	typ = deref(typ)
+	if typ == nil || typ.Kind() != reflect.Struct {
+		return nil
+	}
+	out := make(map[string]bool)
+	collect(typ, "", out, 0)
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// TagSecret is the sensitive tag value for secrets, such as API keys and passwords. It is always kept out of logs.
+const TagSecret = "true"
+
+type keyedMapTag struct {
+	segment string
+	match   func(key string) bool
+}
+
+var (
+	registryMu    sync.RWMutex
+	sensitiveTags = map[string]bool{TagSecret: true}
+	keyedMapTags  = map[string]keyedMapTag{}
+)
+
+// RegisterSensitiveTag keeps fields tagged sensitive:"<tag>" out of logs alongside secrets, for an app-defined class of data such as cost figures. Call it during startup, before any type is inspected, since callers cache SensitiveFields per type.
+func RegisterSensitiveTag(tag string) {
+	registryMu.Lock()
+	defer registryMu.Unlock()
+	sensitiveTags[tag] = true
+}
+
+// RegisterKeyedMapTag declares sensitive:"<tag>" for maps whose keys name what they hold: only the entries whose key satisfies match stay out of logs. Call it during startup, like RegisterSensitiveTag.
+func RegisterKeyedMapTag(tag string, match func(key string) bool) {
+	registryMu.Lock()
+	defer registryMu.Unlock()
+	keyedMapTags[tag] = keyedMapTag{segment: KeyedSegment(tag), match: match}
+}
+
+// IsSensitiveTag reports whether a sensitive struct tag value keeps the field out of logs.
+func IsSensitiveTag(tag string) bool {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+	return sensitiveTags[tag]
+}
+
+// KeyedSegment is the path segment standing for the keys of a map tagged sensitive:"<tag>" that its matcher accepts.
+func KeyedSegment(tag string) string {
+	return "*" + tag + "*"
+}
+
+func lookupKeyedMapTag(tag string) (keyedMapTag, bool) {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+	kt, ok := keyedMapTags[tag]
+	return kt, ok
+}
+
+// keyedSegmentsFor returns the keyed-map segments whose matcher accepts key.
+func keyedSegmentsFor(key string) []string {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+	var segs []string
+	for _, kt := range keyedMapTags {
+		if kt.match(key) {
+			segs = append(segs, kt.segment)
+		}
+	}
+	return segs
+}
+
+func deref(typ reflect.Type) reflect.Type {
+	for typ != nil && typ.Kind() == reflect.Pointer {
+		typ = typ.Elem()
+	}
+	return typ
+}
+
+func parseJSONTagName(tag string) (name string, skip bool) {
+	if tag == "" {
+		return "", false
+	}
+	name = strings.TrimSpace(strings.Split(tag, ",")[0])
+	if name == "-" {
+		return "", true
+	}
+	return name, false
+}
+
+func pathJoin(prefix, key string) string {
+	if prefix == "" {
+		return key
+	}
+	return prefix + "." + key
+}
+
+const maxSensitiveFieldDepth = 32
+
+func collect(typ reflect.Type, prefix string, out map[string]bool, depth int) {
+	collectWithVisited(typ, prefix, out, depth, make(map[reflect.Type]bool))
+}
+
+func collectWithVisited(typ reflect.Type, prefix string, out map[string]bool, depth int, visited map[reflect.Type]bool) {
+	typ = deref(typ)
+	if typ == nil || typ.Kind() != reflect.Struct {
+		return
+	}
+	if depth > maxSensitiveFieldDepth {
+		return
+	}
+	if visited[typ] {
+		return
+	}
+	visited[typ] = true
+	defer func() { delete(visited, typ) }()
+
+	for sf := range typ.Fields() {
+		if !sf.IsExported() {
+			continue
+		}
+
+		if sf.Anonymous {
+			jsonName, skip := parseJSONTagName(sf.Tag.Get("json"))
+			if skip {
+				continue
+			}
+			if jsonName != "" {
+				collectWithVisited(sf.Type, pathJoin(prefix, jsonName), out, depth+1, visited)
+			} else {
+				collectWithVisited(sf.Type, prefix, out, depth+1, visited)
+			}
+			continue
+		}
+
+		jsonName, skip := parseJSONTagName(sf.Tag.Get("json"))
+		if skip || jsonName == "" {
+			continue
+		}
+
+		path := pathJoin(prefix, jsonName)
+
+		ft := sf.Type
+		isSensitive := IsSensitiveTag(sf.Tag.Get("sensitive"))
+		ftd := deref(ft)
+
+		if isSensitive {
+			out[path] = true
+			continue
+		}
+		if kt, ok := lookupKeyedMapTag(sf.Tag.Get("sensitive")); ok {
+			out[pathJoin(path, kt.segment)] = true
+			continue
+		}
+
+		switch ftd.Kind() {
+		case reflect.Struct:
+			collectWithVisited(ft, path, out, depth+1, visited)
+		case reflect.Slice, reflect.Array:
+			elem := deref(ftd.Elem())
+			if elem.Kind() == reflect.Struct {
+				collectWithVisited(ftd.Elem(), path, out, depth+1, visited)
+			}
+		case reflect.Map:
+			elem := deref(ftd.Elem())
+			if elem.Kind() == reflect.Struct {
+				collectWithVisited(ftd.Elem(), pathJoin(path, MapKey), out, depth+1, visited)
+			}
+		}
+	}
+}
+
+// MapKey is the path segment standing for any key of a map, whose keys are data rather than field names.
+const MapKey = "*"
+
+// RedactJSON replaces JSON values whose paths exactly match sensitivePaths keys with the JSON string ****. Arrays reuse the parent's path segment so structs under an array resolve the same dotted paths encoding/json emits (no index in the path), and a MapKey segment matches any object key.
+//
+// On unmarshal marshal failure returns nil so callers omit the logged body entirely.
+func RedactJSON(raw []byte, sensitivePaths map[string]bool) []byte {
+	if len(sensitivePaths) == 0 {
+		return slices.Clone(raw)
+	}
+	if len(raw) == 0 {
+		return slices.Clone(raw)
+	}
+
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+
+	var root any
+	if err := dec.Decode(&root); err != nil {
+		return nil
+	}
+
+	redactAny(root, []string{""}, sensitivePaths, pathPrefixes(sensitivePaths))
+
+	out, err := json.Marshal(root)
+	if err != nil {
+		return nil
+	}
+	return out
+}
+
+// redactAny walks v with every path it may be at: an object key can be a field name or a map key, so each step tries the key itself, MapKey and any keyed-map segment whose matcher accepts the key, keeping only paths that lead to a sensitive one.
+func redactAny(v any, paths []string, sensitivePaths, prefixes map[string]bool) {
+	switch x := v.(type) {
+	case map[string]any:
+		for k, child := range x {
+			var next []string
+			masked := false
+			segs := append([]string{k, MapKey}, keyedSegmentsFor(k)...)
+			for _, p := range paths {
+				for _, seg := range segs {
+					cur := pathJoin(p, seg)
+					if sensitivePaths[cur] {
+						masked = true
+					} else if prefixes[cur] {
+						next = append(next, cur)
+					}
+				}
+			}
+			if masked {
+				x[k] = "****"
+				continue
+			}
+			if len(next) > 0 {
+				redactAny(child, next, sensitivePaths, prefixes)
+			}
+		}
+	case []any:
+		for _, elem := range x {
+			redactAny(elem, paths, sensitivePaths, prefixes)
+		}
+	default:
+		return
+	}
+}
+
+// pathPrefixes lists every proper prefix of the sensitive paths, the paths worth descending into.
+func pathPrefixes(sensitivePaths map[string]bool) map[string]bool {
+	prefixes := make(map[string]bool)
+	for path := range sensitivePaths {
+		for i := range len(path) {
+			if path[i] == '.' {
+				prefixes[path[:i]] = true
+			}
+		}
+	}
+	return prefixes
+}
