@@ -6,8 +6,7 @@ import (
 	"testing"
 )
 
-// Mirrors the private key types other packages declare :
-// same underlying string, different named type.
+// Mirrors the private key types other packages declare: same underlying string, different named type.
 type foreignCtxKey string
 
 type foreignNoTraceKey struct{}
