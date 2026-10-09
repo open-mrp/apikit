@@ -69,7 +69,7 @@ func DecodeJSONInto(dst any, r *http.Request, disallowUnknown bool) error {
 		}
 
 		if serr, ok := errors.AsType[*json.SyntaxError](err); ok {
-			return apierror.NewValidationError(fmt.Sprintf("Invalid JSON in request body at offset %d: %v", serr.Offset, serr.Error()))
+			return apierror.NewParameterInvalidError("", fmt.Sprintf("Invalid JSON in request body at offset %d: %v", serr.Offset, serr.Error()))
 		}
 
 		if apiErr, ok := errors.AsType[*apierror.APIError](err); ok {
