@@ -24,7 +24,7 @@ type testRequest struct {
 
 type enumTestRequest struct {
 	Mode testMode `json:"mode" validate:"required"`
-	Name string                `json:"name" validate:"required"`
+	Name string   `json:"name" validate:"required"`
 }
 
 type enumSliceItem struct {

@@ -14,8 +14,8 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/open-mrp/apikit/cloud/s3"
 	apierror "github.com/open-mrp/apikit/apierror"
+	"github.com/open-mrp/apikit/cloud/s3"
 	"github.com/open-mrp/apikit/tracing"
 )
 

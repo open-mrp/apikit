@@ -10,7 +10,9 @@ const (
 
 func (m testMode) IsValid() bool { return m == testModeProduction || m == testModeSandbox }
 
-func (testMode) EnumValues() []string { return []string{string(testModeProduction), string(testModeSandbox)} }
+func (testMode) EnumValues() []string {
+	return []string{string(testModeProduction), string(testModeSandbox)}
+}
 
 type testKeyStatus string
 

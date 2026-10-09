@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/open-mrp/apikit/cache"
 	apierror "github.com/open-mrp/apikit/apierror"
+	"github.com/open-mrp/apikit/cache"
 )
 
 // ExampleNew caches a lookup per account and drops it when the account changes.

@@ -18,8 +18,8 @@ type mockTransformer struct {
 	transformRequestFunc func(object.Type, map[string]any) map[string]any
 }
 
-func (t *mockTransformer) FromVersion() APIVersion             { return t.from }
-func (t *mockTransformer) ToVersion() APIVersion               { return t.to }
+func (t *mockTransformer) FromVersion() APIVersion    { return t.from }
+func (t *mockTransformer) ToVersion() APIVersion      { return t.to }
 func (t *mockTransformer) ObjectTypes() []object.Type { return t.objectTypes }
 func (t *mockTransformer) Transform(objectType object.Type, data map[string]any) map[string]any {
 	if t.transformFunc != nil {

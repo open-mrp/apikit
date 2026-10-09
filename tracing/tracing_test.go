@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/open-mrp/apikit/appctx"
 	apierror "github.com/open-mrp/apikit/apierror"
+	"github.com/open-mrp/apikit/appctx"
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"

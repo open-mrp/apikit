@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/open-mrp/apikit/object"
 	apierror "github.com/open-mrp/apikit/apierror"
+	"github.com/open-mrp/apikit/object"
 )
 
 func requireAPIErr(t *testing.T, err error, wantCode apierror.Code, wantParam string) {

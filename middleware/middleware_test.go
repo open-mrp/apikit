@@ -165,4 +165,3 @@ func TestSecurityHeaders(t *testing.T) {
 		t.Errorf("headers %v", w.Header())
 	}
 }
-

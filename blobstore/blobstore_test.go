@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	apierror "github.com/open-mrp/apikit/apierror"
 	"github.com/open-mrp/apikit/blobstore"
 	"github.com/open-mrp/apikit/cloud/s3"
-	apierror "github.com/open-mrp/apikit/apierror"
 )
 
 type memObjects struct {
