@@ -476,7 +476,7 @@ func collectSchemaRefsFromSchema(schema Schema, schemas map[string]Schema, refs 
 }
 
 func rewriteStainlessResources(path string, resources *stainlessNode) error {
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) // #nosec G304 - the Stainless config the app names, in its own repository
 	if err != nil {
 		return err
 	}
@@ -527,7 +527,7 @@ func replaceTopLevelMappingNode(root *yaml.Node, key string, value *yaml.Node) {
 // so the generated SDKs send the correct version header. It is a no-op if
 // no such header is configured.
 func syncVersionHeaderValue(path, version string) error {
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) // #nosec G304 - the Stainless config the app names, in its own repository
 	if err != nil {
 		return err
 	}
