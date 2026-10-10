@@ -1,6 +1,7 @@
 package validate
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/open-mrp/apikit/field"
@@ -39,4 +40,39 @@ func TestValidate_ChecksTheFieldsInsideASetOptionalStruct(t *testing.T) {
 	apiErr = Validate(&wrappedAddressRequest{BillTo: field.Some(wrappedAddress{Name: "Dock", Email: field.Some("not-an-address"), Country: "US"})})
 	require.NotNil(t, apiErr, "a wrapper inside the wrapped struct is checked too")
 	assert.Equal(t, "bill_to.email", firstParam(apiErr))
+}
+
+type foundClient struct {
+	Name    string                 `json:"name" validate:"required,max=10"`
+	Version field.Optional[string] `json:"version,omitzero" validate:"omitempty,max=5"`
+}
+
+type foundSection struct {
+	Client field.Optional[foundClient] `json:"client,omitzero"`
+}
+
+type foundRequest struct {
+	Client   field.Optional[foundClient] `json:"client,omitzero"`
+	Sections []foundSection              `json:"sections,omitzero" validate:"dive"`
+	Self     *foundRequest               `json:"self,omitzero"`
+}
+
+// Optional sections are found and checked without registering their types by hand, at any depth and through slices; a type that refers to itself does not loop.
+func TestRegisterWrappedTypesIn_FindsNestedOptionalStructs(t *testing.T) {
+	RegisterWrappedTypesIn(reflect.TypeFor[foundRequest]())
+	RegisterWrappedTypesIn(reflect.TypeFor[foundRequest]()) // idempotent
+
+	assert.Nil(t, Validate(&foundRequest{}))
+	assert.Nil(t, Validate(&foundRequest{Client: field.Some(foundClient{Name: "claude"})}))
+
+	apiErr := Validate(&foundRequest{Client: field.Some(foundClient{})})
+	require.NotNil(t, apiErr, "a required field inside a set optional section is enforced")
+	assert.Equal(t, "client.name", firstParam(apiErr))
+
+	apiErr = Validate(&foundRequest{Client: field.Some(foundClient{Name: "claude", Version: field.Some("1.2.3.4")})})
+	require.NotNil(t, apiErr)
+	assert.Equal(t, "client.version", firstParam(apiErr))
+
+	apiErr = Validate(&foundRequest{Sections: []foundSection{{Client: field.Some(foundClient{Name: "far too long a name"})}}})
+	require.NotNil(t, apiErr, "a section inside a slice (with dive) is found too")
 }

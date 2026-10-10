@@ -155,6 +155,8 @@ func From[TReq, TResp any, T interface {
 }](source T) *APIEndpoint[TReq, TResp] {
 	ep := source.Materialize()
 	field.AssertValuePatchFields(reflect.TypeFor[TReq]())
+	// The tags inside an optional section (field.Optional[SomeInput]) are enforced only once its type is registered; doing it here, at startup, means no endpoint can forget.
+	validate.RegisterWrappedTypesIn(reflect.TypeFor[TReq]())
 	if ep.Extras.MaxJSONBodyBytes > httptransport.MaxJSONBodyBytes {
 		panic(fmt.Sprintf("%s %s: MaxJSONBodyBytes %d is over the gateway's %d ceiling", ep.Method, ep.Route, ep.Extras.MaxJSONBodyBytes, httptransport.MaxJSONBodyBytes))
 	}
