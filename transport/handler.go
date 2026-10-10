@@ -704,16 +704,28 @@ func isRequiredField(sf reflect.StructField) bool {
 	return false
 }
 
-// newMissingEnumFieldError mirrors the code that shared/validate would pick for a missing `required` field, keeping a body field a missing_field and a query or path parameter a parameter_missing.
-func newMissingEnumFieldError(sf reflect.StructField) *apierror.APIError {
-	name := enumParamName(sf)
+// newMissingEnumFieldError mirrors the code that shared/validate would pick for a missing `required` field, keeping a body field a missing_field and a query or path parameter a parameter_missing. name is the field's full path.
+func newMissingEnumFieldError(sf reflect.StructField, name string) *apierror.APIError {
 	if sf.Tag.Get("json") != "" {
 		return apierror.NewMissingFieldError(name, fmt.Sprintf("Field '%s' is required.", name))
 	}
 	return apierror.NewParameterMissingError(name, fmt.Sprintf("Parameter '%s' is required.", name))
 }
 
+// ValidateEnumFields rejects any enum field, at any depth, whose value is not one of its type's EnumValues. An error names the field by its full path (`evidence.type`), so a caller can find a nested field without guessing which section it is in.
 func ValidateEnumFields(dst any) *apierror.APIError {
+	return validateEnumFields(dst, "")
+}
+
+// enumFieldPath joins a nested field's name onto its parent's path.
+func enumFieldPath(prefix string, sf reflect.StructField) string {
+	if prefix == "" {
+		return enumParamName(sf)
+	}
+	return prefix + "." + enumParamName(sf)
+}
+
+func validateEnumFields(dst any, prefix string) *apierror.APIError {
 	rv := reflect.ValueOf(dst)
 	if rv.Kind() == reflect.Pointer {
 		rv = rv.Elem()
@@ -755,7 +767,12 @@ func ValidateEnumFields(dst any) *apierror.APIError {
 		}
 
 		if ft.Kind() == reflect.Struct {
-			if apiErr := ValidateEnumFields(fv.Addr().Interface()); apiErr != nil {
+			// An embedded struct's fields sit at its parent's level on the wire; a named one is a section with its own path.
+			childPrefix := prefix
+			if !sf.Anonymous {
+				childPrefix = enumFieldPath(prefix, sf)
+			}
+			if apiErr := validateEnumFields(fv.Addr().Interface(), childPrefix); apiErr != nil {
 				return apiErr
 			}
 			continue
@@ -798,7 +815,7 @@ func ValidateEnumFields(dst any) *apierror.APIError {
 					}
 				}
 				if !isValid {
-					fieldName := enumParamName(sf)
+					fieldName := enumFieldPath(prefix, sf)
 					return apierror.NewParameterInvalidError(
 						fieldName,
 						fmt.Sprintf("Field '%s' must be one of: %s", fieldName, strings.Join(allowedValues, ", ")))
@@ -836,7 +853,7 @@ func ValidateEnumFields(dst any) *apierror.APIError {
 
 		// A required scalar enum is indistinguishable from an absent one when empty, and this check runs ahead of the `required` tag. Reporting it as an unrecognized value would call a missing field invalid, so it gets the same code the tag would have produced.
 		if currentValue == "" && isRequiredField(sf) {
-			return newMissingEnumFieldError(sf)
+			return newMissingEnumFieldError(sf, enumFieldPath(prefix, sf))
 		}
 
 		isValid := false
@@ -853,7 +870,7 @@ func ValidateEnumFields(dst any) *apierror.APIError {
 		if !isValid {
 			// Read every tag, not just json: a scalar enum is as often a query filter as a body
 			// field, and naming it "Type" instead of "type" told the caller nothing.
-			fieldName := enumParamName(sf)
+			fieldName := enumFieldPath(prefix, sf)
 			return apierror.NewParameterInvalidError(
 				fieldName,
 				fmt.Sprintf("Field '%s' must be one of: %s", fieldName, strings.Join(allowedValues, ", ")))

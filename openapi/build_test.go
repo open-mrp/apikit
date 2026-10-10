@@ -44,7 +44,7 @@ func TestBuild_FixtureAPI(t *testing.T) {
 	spec := string(out)
 	for _, want := range []string{
 		`"$ref": "#/components/schemas/APIErrorResponse"`,
-		`"has_previous_page"`,
+		`"previous_page_url"`,
 		`?cursor=`,
 		string(apierror.CodeIdempotencyKeyReused),
 	} {

@@ -15,16 +15,12 @@ type ListRequest struct {
 
 // Where a page sits in its result set, and how to reach the pages around it.
 //
-// Follow the URLs rather than assembling cursors: for a list endpoint the URL repeats the original query string with only the cursor swapped, so the same filters, search and page size carry over.
+// Another page exists exactly when its URL is present; there are no `has_next_page` or `has_previous_page` booleans, since they would only repeat that. Follow the URLs rather than assembling cursors: for a list endpoint the URL repeats the original query string with only the cursor swapped, so the same filters, search and page size carry over.
 type PageInfo struct {
 	// Relative URL of the next page, or null on the last page.
 	NextPageURL *string `json:"next_page_url"`
 	// Relative URL of the previous page, or null on the first page.
 	PreviousPageURL *string `json:"previous_page_url"`
-	// Whether results exist after this page.
-	HasNextPage bool `json:"has_next_page"`
-	// Whether results exist before this page.
-	HasPreviousPage bool `json:"has_previous_page"`
 }
 
 // A single page of resources, with what is needed to page through the rest.

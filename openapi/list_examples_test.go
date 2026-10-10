@@ -28,8 +28,8 @@ func TestBuildListSchemaExample_WithoutRouteUsesNullPageURLs(t *testing.T) {
 	if pageInfo["next_page_url"] != nil {
 		t.Errorf("next_page_url = %v, want nil for nested list schemas", pageInfo["next_page_url"])
 	}
-	if pageInfo["has_next_page"] != false {
-		t.Errorf("has_next_page = %v, want false", pageInfo["has_next_page"])
+	if _, ok := pageInfo["has_next_page"]; ok {
+		t.Errorf("page_info has has_next_page; it is the two URLs only")
 	}
 }
 
@@ -68,8 +68,8 @@ func TestBuildListSchemaExample_PaginatedListURL(t *testing.T) {
 	if nextURL != wantURL {
 		t.Errorf("next_page_url = %q, want %q", nextURL, wantURL)
 	}
-	if pageInfo["has_next_page"] != true {
-		t.Errorf("has_next_page = %v, want true", pageInfo["has_next_page"])
+	if len(pageInfo) != 2 {
+		t.Errorf("page_info = %v, want next_page_url and previous_page_url only", pageInfo)
 	}
 }
 

@@ -726,11 +726,15 @@ func TestGenerateSchema_ListAndPageInfoUseDocComments(t *testing.T) {
 	for prop, want := range map[string]string{
 		"next_page_url":     "Relative URL of the next page, or null on the last page.",
 		"previous_page_url": "Relative URL of the previous page, or null on the first page.",
-		"has_next_page":     "Whether results exist after this page.",
-		"has_previous_page": "Whether results exist before this page.",
 	} {
 		if got := pageInfoSchema.Properties[prop].Description; got != want {
 			t.Errorf("%s description = %q; want %q", prop, got, want)
+		}
+	}
+	// forge.1: another page exists exactly when its URL is present, so page_info carries no booleans.
+	for _, prop := range []string{"has_next_page", "has_previous_page"} {
+		if _, ok := pageInfoSchema.Properties[prop]; ok {
+			t.Errorf("PageInfo has %s; page_info is the two URLs only", prop)
 		}
 	}
 }

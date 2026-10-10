@@ -25,7 +25,7 @@ func mustJSON(t *testing.T, v any) string {
 func TestNewList_emptyDataIsAnEmptyArray(t *testing.T) {
 	t.Parallel()
 	got := mustJSON(t, object.NewList[string](nil, object.PageInfo{}))
-	want := `{"object":"list","page_info":{"next_page_url":null,"previous_page_url":null,"has_next_page":false,"has_previous_page":false},"data":[]}`
+	want := `{"object":"list","page_info":{"next_page_url":null,"previous_page_url":null},"data":[]}`
 	if got != want {
 		t.Errorf("got %s\nwant %s", got, want)
 	}

@@ -696,3 +696,29 @@ func TestRespondWithJSON(t *testing.T) {
 		}
 	})
 }
+
+type enumTestSection struct {
+	Mode testMode `json:"mode"`
+}
+
+type EnumTestEmbedded struct {
+	Kind testMode `json:"kind"`
+}
+
+type enumTestNestedRequest struct {
+	EnumTestEmbedded
+	Section enumTestSection `json:"section"`
+}
+
+// A nested enum is named by its full path, and an embedded struct's fields by their own name, as they appear on the wire.
+func TestValidateEnumFields_NestedPath(t *testing.T) {
+	t.Parallel()
+	err := ValidateEnumFields(&enumTestNestedRequest{EnumTestEmbedded: EnumTestEmbedded{Kind: testModeProduction}, Section: enumTestSection{Mode: testMode("invalid")}})
+	if err == nil || err.Param != "section.mode" {
+		t.Fatalf("param = %v, want section.mode", err)
+	}
+	err = ValidateEnumFields(&enumTestNestedRequest{EnumTestEmbedded: EnumTestEmbedded{Kind: testMode("invalid")}, Section: enumTestSection{Mode: testModeProduction}})
+	if err == nil || err.Param != "kind" {
+		t.Fatalf("param = %v, want kind", err)
+	}
+}

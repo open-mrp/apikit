@@ -19,14 +19,11 @@ func buildListSchemaExample(components *Components, docReader *DocReader, listTy
 	dataArray, nextCursor := listItemExampleData(components, docReader, listType)
 
 	var nextPageURL, prevPageURL any
-	hasNextPage := false
-	hasPrevPage := false
 
 	if nextCursor != "" && strings.TrimSpace(route) != "" {
 		expandedRoute := expandDocumentationRoute(route, reqType)
 		if expandedRoute != "" {
 			nextPageURL = buildDocumentationPageURL(expandedRoute, nextCursor)
-			hasNextPage = true
 		}
 	}
 
@@ -35,8 +32,6 @@ func buildListSchemaExample(components *Components, docReader *DocReader, listTy
 		"page_info": map[string]any{
 			"next_page_url":     nextPageURL,
 			"previous_page_url": prevPageURL,
-			"has_next_page":     hasNextPage,
-			"has_previous_page": hasPrevPage,
 		},
 		"data": dataArray,
 	}
