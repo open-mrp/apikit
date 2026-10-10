@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/open-mrp/apikit/compare/v0.1.0...v0.1.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* **validate:** check the fields inside optional sections without registering each type ([#3](https://github.com/open-mrp/apikit/issues/3)) ([dfbb096](https://github.com/open-mrp/apikit/commit/dfbb096887a748dc21ae3f9c7f1a9ab4210ffeb6))
+
 ## 0.1.0 (2026-10-10)
 
 
