@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -357,9 +358,60 @@ func validateMultipleOf(fl validator.FieldLevel) bool {
 }
 
 // RegisterWrappedTypes enforces the field tags inside field.Optional[T] and field.Clearable[T] wrappers whose T is
-// defined outside the field package. Call it from the package that defines T, at init.
+// defined outside the field package. Call it from the package that defines T, at init. RegisterWrappedTypesIn finds them
+// on its own, and endpoint.From calls it for every request type, so a request handled by an endpoint needs neither.
 func RegisterWrappedTypes(wrappers ...any) {
 	field.RegisterWrappedTypes(validate, wrappers...)
+}
+
+var (
+	wrappedMu   sync.Mutex
+	wrappedSeen = map[reflect.Type]bool{}
+)
+
+// RegisterWrappedTypesIn finds every field.Optional[T] and field.Clearable[T] whose T is a struct, anywhere in typ
+// (nested sections, slices, maps, embedded structs), and registers it so the tags on T's fields are enforced once the
+// wrapper is set. Without it the validator treats such a wrapper as a leaf and never looks inside, so a required field
+// in an optional section passes when missing. It is idempotent and meant for startup: go-playground/validator must not
+// gain a type while it validates, and each type is registered only the first time it is seen.
+func RegisterWrappedTypesIn(typ reflect.Type) {
+	wrappedMu.Lock()
+	defer wrappedMu.Unlock()
+	var wrappers []any
+	collectWrappedStructs(typ, map[reflect.Type]bool{}, &wrappers)
+	if len(wrappers) > 0 {
+		field.RegisterWrappedTypes(validate, wrappers...)
+	}
+}
+
+func collectWrappedStructs(typ reflect.Type, walking map[reflect.Type]bool, out *[]any) {
+	for typ != nil && (typ.Kind() == reflect.Pointer || typ.Kind() == reflect.Slice || typ.Kind() == reflect.Array || typ.Kind() == reflect.Map) {
+		typ = typ.Elem()
+	}
+	if typ == nil || walking[typ] {
+		return
+	}
+	walking[typ] = true
+	if inner, ok := field.InnerType(typ); ok {
+		structInner := inner
+		for structInner.Kind() == reflect.Pointer || structInner.Kind() == reflect.Slice {
+			structInner = structInner.Elem()
+		}
+		if structInner.Kind() == reflect.Struct && structInner != reflect.TypeFor[time.Time]() && !wrappedSeen[typ] {
+			wrappedSeen[typ] = true
+			*out = append(*out, reflect.Zero(typ).Interface())
+		}
+		collectWrappedStructs(inner, walking, out)
+		return
+	}
+	if typ.Kind() != reflect.Struct {
+		return
+	}
+	for i := 0; i < typ.NumField(); i++ {
+		if sf := typ.Field(i); sf.IsExported() || sf.Anonymous {
+			collectWrappedStructs(sf.Type, walking, out)
+		}
+	}
 }
 
 // Validate runs all struct-tag validations on v and returns a user-facing [apierror.APIError] on failure (nil on success).

@@ -12,7 +12,9 @@ import (
 
 	apierror "github.com/open-mrp/apikit/apierror"
 	"github.com/open-mrp/apikit/appctx"
+	"github.com/open-mrp/apikit/field"
 	"github.com/open-mrp/apikit/redact"
+	"github.com/open-mrp/apikit/validate"
 )
 
 type stubRequest struct {
@@ -263,5 +265,28 @@ func TestCollectIncludeQueryValues_MergesIncludeAndIncludeArrayFormats(t *testin
 	}
 	if len(got) != len(expected) || !got["actor"] || !got["changes"] {
 		t.Fatalf("expected actor and changes, got: %v", values)
+	}
+}
+
+type fromNestedInput struct {
+	Name string `json:"name" validate:"required"`
+}
+
+type fromNestedRequest struct {
+	Section field.Optional[fromNestedInput] `json:"section,omitzero"`
+}
+
+type fromNestedEndpoint struct{}
+
+func (*fromNestedEndpoint) Materialize() *APIEndpoint[*fromNestedRequest, *struct{}] {
+	return &APIEndpoint[*fromNestedRequest, *struct{}]{Method: http.MethodPost, Route: "/v1/test/nested"}
+}
+
+// From registers the optional sections of the endpoint's request, so their tags are enforced without the app registering anything.
+func TestFrom_RegistersOptionalSectionsForValidation(t *testing.T) {
+	From(&fromNestedEndpoint{})
+	apiErr := validate.Validate(&fromNestedRequest{Section: field.Some(fromNestedInput{})})
+	if apiErr == nil || apiErr.Param != "section.name" {
+		t.Fatalf("Validate = %v, want a missing section.name", apiErr)
 	}
 }
