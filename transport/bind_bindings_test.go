@@ -203,11 +203,11 @@ func TestBindFromQuery_happyPaths_extra(t *testing.T) {
 		}
 	})
 
-	t.Run("RFC3339 time requires pointer receiver with query tag", func(t *testing.T) {
+	t.Run("RFC3339 time binds by pointer or value", func(t *testing.T) {
 		t.Parallel()
 		type body struct {
 			Until *time.Time `query:"until"`
-			Blank time.Time  `query:"blank"` // time.Time cannot bind as scalar (walker recurses inner struct).
+			Blank time.Time  `query:"blank"`
 		}
 		until := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 		q := make(url.Values)
@@ -221,8 +221,8 @@ func TestBindFromQuery_happyPaths_extra(t *testing.T) {
 		if dst.Until == nil || !dst.Until.Equal(until) {
 			t.Fatalf("Until: %+v", dst.Until)
 		}
-		if !dst.Blank.IsZero() {
-			t.Fatalf("non-pointer time.Time ignores query key; got %+v", dst.Blank)
+		if !dst.Blank.Equal(until) {
+			t.Fatalf("Blank: %+v", dst.Blank)
 		}
 	})
 

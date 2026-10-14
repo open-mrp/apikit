@@ -711,7 +711,8 @@ type enumBodyReq struct {
 	Kind testKind `json:"kind" validate:"required"`
 }
 
-func TestExecute_enumFieldInvalid_returns400(t *testing.T) {
+// A body enum outside its set is a 422 naming the field, like any other bad body value.
+func TestExecute_enumFieldInvalid_returns422(t *testing.T) {
 	t.Parallel()
 	ep := &APIEndpoint[*enumBodyReq, *stubResponse]{
 		Method:            http.MethodPost,
@@ -734,7 +735,7 @@ func TestExecute_enumFieldInvalid_returns400(t *testing.T) {
 
 	ep.Execute(w, r)
 
-	if w.Code != http.StatusBadRequest {
+	if w.Code != http.StatusUnprocessableEntity || !strings.Contains(w.Body.String(), `"code":"validation_failed"`) || !strings.Contains(w.Body.String(), `"code":"invalid_format"`) {
 		t.Fatalf("code=%d body=%s", w.Code, w.Body.String())
 	}
 }

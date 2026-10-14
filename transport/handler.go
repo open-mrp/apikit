@@ -3,6 +3,7 @@ package transport
 import (
 	"bytes"
 	"context"
+	"encoding"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -597,6 +598,9 @@ func setFromString(v reflect.Value, s string, tag reflect.StructTag) error {
 			v.Set(reflect.ValueOf(t))
 			return nil
 		}
+		if u, ok := v.Addr().Interface().(encoding.TextUnmarshaler); ok {
+			return u.UnmarshalText([]byte(s))
+		}
 		return fmt.Errorf("unsupported string->struct conversion for %s", v.Type().String())
 	case reflect.Slice:
 		if v.Type().Elem().Kind() == reflect.String {
@@ -712,6 +716,20 @@ func newMissingEnumFieldError(sf reflect.StructField, name string) *apierror.API
 	return apierror.NewParameterMissingError(name, fmt.Sprintf("Parameter '%s' is required.", name))
 }
 
+// newInvalidEnumFieldError reports a value outside an enum's set the way shared/validate reports any other bad value: a body field is a 422 invalid_format entry, a query, path or header parameter a 400 parameter_invalid. name is the field's full path.
+func newInvalidEnumFieldError(sf reflect.StructField, name string, allowed []string) *apierror.APIError {
+	message := fmt.Sprintf("Field '%s' must be one of: %s", name, strings.Join(allowed, ", "))
+	if isParameterField(sf) {
+		return apierror.NewParameterInvalidError(name, message)
+	}
+	return apierror.NewInvalidFormatError(name, message)
+}
+
+// isParameterField reports whether a request field is bound from the query, path or a header rather than the body.
+func isParameterField(sf reflect.StructField) bool {
+	return sf.Tag.Get("query") != "" || sf.Tag.Get("path") != "" || sf.Tag.Get("header") != "" || sf.Tag.Get("cookie") != ""
+}
+
 // ValidateEnumFields rejects any enum field, at any depth, whose value is not one of its type's EnumValues. An error names the field by its full path (`evidence.type`), so a caller can find a nested field without guessing which section it is in.
 func ValidateEnumFields(dst any) *apierror.APIError {
 	return validateEnumFields(dst, "")
@@ -815,10 +833,7 @@ func validateEnumFields(dst any, prefix string) *apierror.APIError {
 					}
 				}
 				if !isValid {
-					fieldName := enumFieldPath(prefix, sf)
-					return apierror.NewParameterInvalidError(
-						fieldName,
-						fmt.Sprintf("Field '%s' must be one of: %s", fieldName, strings.Join(allowedValues, ", ")))
+					return newInvalidEnumFieldError(sf, enumFieldPath(prefix, sf), allowedValues)
 				}
 			}
 			continue
@@ -870,10 +885,7 @@ func validateEnumFields(dst any, prefix string) *apierror.APIError {
 		if !isValid {
 			// Read every tag, not just json: a scalar enum is as often a query filter as a body
 			// field, and naming it "Type" instead of "type" told the caller nothing.
-			fieldName := enumFieldPath(prefix, sf)
-			return apierror.NewParameterInvalidError(
-				fieldName,
-				fmt.Sprintf("Field '%s' must be one of: %s", fieldName, strings.Join(allowedValues, ", ")))
+			return newInvalidEnumFieldError(sf, enumFieldPath(prefix, sf), allowedValues)
 		}
 	}
 

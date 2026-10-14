@@ -101,7 +101,7 @@ func structTypeHasBindDescendantAt(rt reflect.Type, visiting map[reflect.Type]st
 			continue
 		}
 		if ft.Kind() == reflect.Struct {
-			if structTypeHasBindDescendantAt(ft, visiting, depth+1) {
+			if bindTagOnStruct(sf.Tag) || structTypeHasBindDescendantAt(ft, visiting, depth+1) {
 				return true
 			}
 			continue
@@ -164,6 +164,11 @@ func buildBindPlan(root reflect.Type) *bindPlan {
 				continue
 			}
 			if ft.Kind() == reflect.Struct {
+				// A tagged struct value, such as a time.Time or timeutil.Date, is one parameter parsed from its string form.
+				if bindTagOnStruct(sf.Tag) {
+					addLeaf(sf, ft, cloneSteps(prefix), i, allowedQuery, &fields)
+					continue
+				}
 				if !structTypeHasBindDescendant(ft) {
 					continue
 				}

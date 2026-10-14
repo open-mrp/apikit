@@ -9,6 +9,7 @@ import (
 
 	apierror "github.com/open-mrp/apikit/apierror"
 	"github.com/open-mrp/apikit/field"
+	"github.com/open-mrp/apikit/timeutil"
 )
 
 // valueDecodeError turns an error decoding a value of body into an invalid_format error naming the
@@ -35,13 +36,19 @@ func valueDecodeError(body []byte, dst any, err error) error {
 	if _, ok := errors.AsType[*time.ParseError](cause); ok {
 		return apierror.NewInvalidFormatError(path, fmt.Sprintf("Invalid format for field '%s': expected an RFC 3339 timestamp, such as 2024-01-15T10:30:00Z.", path))
 	}
+	if errors.Is(cause, timeutil.ErrInvalidDate) {
+		return apierror.NewInvalidFormatError(path, fmt.Sprintf("Invalid format for field '%s': expected a YYYY-MM-DD date, such as 2024-01-15.", path))
+	}
 	if errors.Is(cause, field.ErrExplicitNull) {
 		return apierror.NewInvalidFormatError(path, fmt.Sprintf("Field '%s' cannot be null.", path))
 	}
 	return apierror.NewInvalidFormatError(path, fmt.Sprintf("Invalid value for field '%s'.", path))
 }
 
-var timeType = reflect.TypeFor[time.Time]()
+var (
+	timeType = reflect.TypeFor[time.Time]()
+	dateType = reflect.TypeFor[timeutil.Date]()
+)
 
 // jsonTypeName names the JSON a Go type accepts, so a type error does not leak Go type names.
 func jsonTypeName(t reflect.Type) string {
@@ -50,6 +57,9 @@ func jsonTypeName(t reflect.Type) string {
 	}
 	if t == timeType {
 		return "an RFC 3339 timestamp"
+	}
+	if t == dateType {
+		return "a YYYY-MM-DD date"
 	}
 	switch t.Kind() {
 	case reflect.String:
