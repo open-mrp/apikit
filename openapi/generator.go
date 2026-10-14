@@ -17,6 +17,7 @@ import (
 	apiexample "github.com/open-mrp/apikit/example"
 	"github.com/open-mrp/apikit/field"
 	"github.com/open-mrp/apikit/object"
+	"github.com/open-mrp/apikit/timeutil"
 )
 
 func endpointSpecField(e endpoint.APIEndpointer) reflect.Value {
@@ -493,6 +494,19 @@ func namedEnumSchemaName(t reflect.Type) string {
 	return ""
 }
 
+var dateType = reflect.TypeFor[timeutil.Date]()
+
+// stringFormatFor reports the string format of the struct types that travel as strings: time.Time is an RFC 3339 instant and timeutil.Date a YYYY-MM-DD day.
+func stringFormatFor(t reflect.Type) (string, bool) {
+	switch {
+	case t == dateType:
+		return "date", true
+	case t.Kind() == reflect.Struct && t.PkgPath() == "time" && t.Name() == "Time":
+		return "date-time", true
+	}
+	return "", false
+}
+
 // isJSONRawMessage reports whether t is json.RawMessage. Go 1.27 re-aliased it to encoding/json/jsontext.Value, so both identities have to match.
 func isJSONRawMessage(t reflect.Type) bool {
 	if t.Kind() != reflect.Slice {
@@ -513,9 +527,8 @@ func generateSchema(t reflect.Type, components *Components, docReader *DocReader
 		t = t.Elem()
 	}
 
-	// Handle time.Time as a string with date-time format
-	if t.Kind() == reflect.Struct && t.PkgPath() == "time" && t.Name() == "Time" {
-		return Schema{Type: "string", Format: "date-time"}
+	if format, ok := stringFormatFor(t); ok {
+		return Schema{Type: "string", Format: format}
 	}
 
 	// json.RawMessage represents arbitrary JSON (object/array/primitives).
@@ -742,9 +755,9 @@ func generateSchema(t reflect.Type, components *Components, docReader *DocReader
 		case reflect.Bool:
 			fieldSchema.Type = "boolean"
 		case reflect.Struct:
-			if fieldType.PkgPath() == "time" && fieldType.Name() == "Time" {
+			if format, ok := stringFormatFor(fieldType); ok {
 				fieldSchema.Type = "string"
-				fieldSchema.Format = "date-time"
+				fieldSchema.Format = format
 			} else if name := getCleanTypeName(fieldType); name != "" {
 				schemaName := name
 				if _, ok := components.Schemas[schemaName]; !ok {

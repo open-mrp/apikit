@@ -3,12 +3,16 @@ package timeutil
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 )
 
 // DateLayout is the wire format of a Date: a calendar day with no time or zone.
 const DateLayout = "2006-01-02"
+
+// ErrInvalidDate is wrapped by every error parsing a Date, so a caller can tell a malformed date from other bad input.
+var ErrInvalidDate = errors.New("expected YYYY-MM-DD")
 
 // Date is a business day, the value of an `_on` field. It names a day on the account's calendar rather than an instant, so it carries no time zone; turn it into an instant with Start in the account's location.
 //
@@ -34,7 +38,7 @@ func DateOf(t time.Time) Date {
 func ParseDate(s string) (Date, error) {
 	t, err := time.Parse(DateLayout, s)
 	if err != nil {
-		return Date{}, fmt.Errorf("invalid date %q: expected YYYY-MM-DD", s)
+		return Date{}, fmt.Errorf("invalid date %q: %w", s, ErrInvalidDate)
 	}
 	return DateOf(t), nil
 }
@@ -107,7 +111,7 @@ func (d *Date) UnmarshalJSON(b []byte) error {
 	}
 	var s string
 	if err := json.Unmarshal(b, &s); err != nil {
-		return fmt.Errorf("invalid date: expected a YYYY-MM-DD string")
+		return fmt.Errorf("invalid date: %w", ErrInvalidDate)
 	}
 	return d.UnmarshalText([]byte(s))
 }

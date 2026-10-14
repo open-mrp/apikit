@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
+
+	"github.com/open-mrp/apikit/timeutil"
 )
 
 // RegisterValidator teaches go-playground/validator how to validate struct tags on field.Clearable[T] and field.Optional[T]: unset (and clear for Clearable) are treated as empty for validate:"omitempty"; when set, the inner value is validated.
@@ -20,6 +22,7 @@ func RegisterValidator(v *validator.Validate) {
 		Clearable[float64]{},
 		Clearable[bool]{},
 		Clearable[time.Time]{},
+		Clearable[timeutil.Date]{},
 		Clearable[map[string]*string]{},
 		Optional[string]{},
 		Optional[[]string]{},
@@ -29,6 +32,7 @@ func RegisterValidator(v *validator.Validate) {
 		Optional[float64]{},
 		Optional[bool]{},
 		Optional[time.Time]{},
+		Optional[timeutil.Date]{},
 	} {
 		v.RegisterCustomTypeFunc(patchWrappedCustomType, typ)
 	}

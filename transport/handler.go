@@ -3,6 +3,7 @@ package transport
 import (
 	"bytes"
 	"context"
+	"encoding"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -596,6 +597,9 @@ func setFromString(v reflect.Value, s string, tag reflect.StructTag) error {
 			}
 			v.Set(reflect.ValueOf(t))
 			return nil
+		}
+		if u, ok := v.Addr().Interface().(encoding.TextUnmarshaler); ok {
+			return u.UnmarshalText([]byte(s))
 		}
 		return fmt.Errorf("unsupported string->struct conversion for %s", v.Type().String())
 	case reflect.Slice:

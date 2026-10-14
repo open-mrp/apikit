@@ -11,6 +11,7 @@ import (
 
 	apierror "github.com/open-mrp/apikit/apierror"
 	"github.com/open-mrp/apikit/field"
+	"github.com/open-mrp/apikit/timeutil"
 )
 
 type decodeQuantity struct {
@@ -26,6 +27,8 @@ type decodeValueReq struct {
 	Quantity field.Optional[decodeQuantity]  `json:"quantity,omitzero"`
 	Lines    []decodeQuantity                `json:"lines"`
 	Patch    field.Clearable[decodeQuantity] `json:"patch,omitzero"`
+	ShipOn   field.Clearable[timeutil.Date]  `json:"ship_on,omitzero"`
+	DueOn    timeutil.Date                   `json:"due_on"`
 }
 
 func decodeValueBody(t *testing.T, body string) error {
@@ -52,6 +55,9 @@ func TestDecodeJSONInto_valueErrorNamesTheField(t *testing.T) {
 		{"clearable time given a number", `{"verified":12}`, "verified", "Invalid type for field 'verified': expected an RFC 3339 timestamp, got number."},
 		{"clearable time not a time", `{"verified":"yesterday"}`, "verified", "Invalid format for field 'verified': expected an RFC 3339 timestamp, such as 2024-01-15T10:30:00Z."},
 		{"plain time not a time", `{"due":"soon"}`, "due", "Invalid format for field 'due': expected an RFC 3339 timestamp, such as 2024-01-15T10:30:00Z."},
+		{"clearable date given a timestamp", `{"ship_on":"2024-01-15T10:30:00Z"}`, "ship_on", "Invalid format for field 'ship_on': expected a YYYY-MM-DD date, such as 2024-01-15."},
+		{"plain date not a day", `{"due_on":"2025-02-30"}`, "due_on", "Invalid format for field 'due_on': expected a YYYY-MM-DD date, such as 2024-01-15."},
+		{"plain date given a number", `{"due_on":12}`, "due_on", "Invalid format for field 'due_on': expected a YYYY-MM-DD date, such as 2024-01-15."},
 		{"plain int given text", `{"plain":"x"}`, "plain", "Invalid type for field 'plain': expected 32-bit integer, got string."},
 		{"field inside an optional object", `{"quantity":{"value":"x"}}`, "quantity.value", "Invalid type for field 'quantity.value': expected 32-bit integer, got string."},
 		{"optional object given a string", `{"quantity":"x"}`, "quantity", "Invalid type for field 'quantity': expected object, got string."},

@@ -20,6 +20,7 @@ import (
 	"github.com/open-mrp/apikit/field"
 	"github.com/open-mrp/apikit/object"
 	"github.com/open-mrp/apikit/openapi"
+	"github.com/open-mrp/apikit/timeutil"
 )
 
 // Endpoint is what a Rule sees of one endpoint.
@@ -338,7 +339,7 @@ func walkResponse(t reflect.Type, prefix string, seen map[reflect.Type]bool, fn 
 	default:
 		return
 	}
-	if seen[t] || t.PkgPath() == "time" {
+	if seen[t] || t.PkgPath() == "time" || t == reflect.TypeFor[timeutil.Date]() {
 		return
 	}
 	seen[t] = true
