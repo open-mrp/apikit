@@ -165,7 +165,7 @@ func buildOpenAPISpec(groups []endpoint.APIEndpointGroup, publicOnly bool, versi
 								Schema:      generateSchema(f.Type, &spec.Components, docReader),
 							})
 						}
-						if query := f.Tag.Get("query"); query != "" {
+						if query := f.Tag.Get("query"); query != "" && !(publicOnly && isInternalField(f)) {
 							paramSchema := generateSchema(f.Type, &spec.Components, docReader)
 							desc := getFieldDoc(reqType, f, docReader)
 							if desc == "" {
@@ -496,6 +496,11 @@ func namedEnumSchemaName(t reflect.Type) string {
 
 var dateType = reflect.TypeFor[timeutil.Date]()
 
+// isInternalField reports a field tagged `visibility:"internal"`: part of an area still in private beta, served to every caller but left out of the public reference until the area goes public.
+func isInternalField(f reflect.StructField) bool {
+	return f.Tag.Get("visibility") == "internal"
+}
+
 // stringFormatFor reports the string format of the struct types that travel as strings: time.Time is an RFC 3339 instant and timeutil.Date a YYYY-MM-DD day.
 func stringFormatFor(t reflect.Type) (string, bool) {
 	switch {
@@ -626,6 +631,9 @@ func generateSchema(t reflect.Type, components *Components, docReader *DocReader
 		}
 
 		if jsonTag == "-" || jsonTag == "" {
+			continue
+		}
+		if active().PublicOnly && isInternalField(f) {
 			continue
 		}
 		parts := strings.Split(jsonTag, ",")
