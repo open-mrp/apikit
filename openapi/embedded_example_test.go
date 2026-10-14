@@ -35,3 +35,18 @@ func TestGenerateSchema_ExampleKeepsEmbeddedFields(t *testing.T) {
 		t.Errorf("allOf %v, want the embedded struct's schema", schema.AllOf)
 	}
 }
+
+func TestDeletedExample(t *testing.T) {
+	t.Parallel()
+	got := deletedExample([]Parameter{
+		{Name: "id", In: "path", Example: "wd_1"},
+		{Name: "part_id", In: "path", Example: "pt_2"},
+		{Name: "expand", In: "query", Example: "x"},
+	}, "part")
+	if got["id"] != "pt_2" || got["object"] != "part" || got["deleted"] != true {
+		t.Errorf("got %v", got)
+	}
+	if got := deletedExample(nil, ""); got["object"] != "resource" {
+		t.Errorf("fallback object %v", got["object"])
+	}
+}
