@@ -828,7 +828,7 @@ func generateSchema(t reflect.Type, components *Components, docReader *DocReader
 	// of the JSON payload). Filter object examples down to schema properties so
 	// `requestBody.example` never includes invalid keys.
 	schema.Example = fillOptionalBooleanExampleDefaults(
-		filterExampleToSchemaProperties(schema.Example, schema),
+		filterExampleToSchemaProperties(schema.Example, withEmbeddedProperties(schema, components)),
 		schema,
 	)
 
@@ -889,6 +889,32 @@ func fillOptionalBooleanExampleDefaults(example any, schema Schema) any {
 	}
 
 	return filled
+}
+
+// withEmbeddedProperties returns schema with the properties of the structs it embeds (its allOf references) added, so an example keeps the fields an embedded struct contributes.
+func withEmbeddedProperties(schema Schema, components *Components) Schema {
+	if len(schema.AllOf) == 0 || components == nil {
+		return schema
+	}
+	merged := schema
+	merged.Properties = make(map[string]Schema, len(schema.Properties))
+	for _, part := range schema.AllOf {
+		embedded, ok := components.Schemas[refLastSegment(part.Ref)]
+		if !ok {
+			continue
+		}
+		embedded = withEmbeddedProperties(embedded, components)
+		for k, v := range embedded.Properties {
+			merged.Properties[k] = v
+		}
+	}
+	for k, v := range schema.Properties {
+		merged.Properties[k] = v
+	}
+	if merged.Type == "" && len(merged.Properties) > 0 {
+		merged.Type = "object"
+	}
+	return merged
 }
 
 func filterExampleToSchemaProperties(example any, schema Schema) any {
