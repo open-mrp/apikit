@@ -48,6 +48,9 @@ func (f *fakeSQS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	queueURL, _ := body["QueueUrl"].(string)
 	name := queueURL[strings.LastIndex(queueURL, "/")+1:]
+	if queueName, ok := body["QueueName"].(string); ok {
+		name = queueName
+	}
 
 	f.mu.Lock()
 	h, ok := f.handlers[name]
@@ -229,5 +232,43 @@ func TestDeleteSurfacesFailure(t *testing.T) {
 
 	if apiErr := client.Delete(context.Background(), "rh-expired"); apiErr == nil {
 		t.Fatal("expected an error when the receipt handle is rejected")
+	}
+}
+
+// A queue given by name is resolved to its URL once, and later calls use that URL.
+func TestNewClientResolvesQueueName(t *testing.T) {
+	t.Parallel()
+
+	name := "testnewclientresolvesqueuename"
+	var mu sync.Mutex
+	var actions []string
+	fake.mu.Lock()
+	fake.handlers[name] = func(r request) (int, string) {
+		mu.Lock()
+		actions = append(actions, r.Action)
+		mu.Unlock()
+		if r.Action == "GetQueueUrl" {
+			return http.StatusOK, `{"QueueUrl":"https://sqs.us-east-2.amazonaws.com/123456789012/` + name + `"}`
+		}
+		return http.StatusOK, `{}`
+	}
+	fake.mu.Unlock()
+	t.Cleanup(func() {
+		fake.mu.Lock()
+		delete(fake.handlers, name)
+		fake.mu.Unlock()
+	})
+
+	client, apiErr := sqs.NewClient(context.Background(), "us-east-2", name)
+	if apiErr != nil {
+		t.Fatalf("NewClient: %v", apiErr)
+	}
+	if apiErr := client.Delete(context.Background(), "rh"); apiErr != nil {
+		t.Fatalf("Delete: %v", apiErr)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(actions) != 2 || actions[0] != "GetQueueUrl" || actions[1] != "DeleteMessage" {
+		t.Errorf("calls: got %v", actions)
 	}
 }
