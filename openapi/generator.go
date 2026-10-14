@@ -16,6 +16,7 @@ import (
 	"github.com/open-mrp/apikit/endpoint"
 	apiexample "github.com/open-mrp/apikit/example"
 	"github.com/open-mrp/apikit/field"
+	"github.com/open-mrp/apikit/object"
 )
 
 func endpointSpecField(e endpoint.APIEndpointer) reflect.Value {
@@ -295,6 +296,9 @@ func buildOpenAPISpec(groups []endpoint.APIEndpointGroup, publicOnly bool, versi
 					spec.Components.Schemas[schemaName] = generateSchema(respType, &spec.Components, docReader)
 				}
 				responseExample := spec.Components.Schemas[schemaName].Example
+				if respType == reflect.TypeFor[*object.Deleted]() || respType == reflect.TypeFor[object.Deleted]() {
+					responseExample = deletedExample(operation.Parameters, specField.FieldByName("ObjectType").String())
+				}
 				if strings.HasPrefix(schemaName, "List_") && route != "" {
 					responseExample = buildListSchemaExample(&spec.Components, docReader, respType, route, origReqType)
 				}
@@ -828,7 +832,7 @@ func generateSchema(t reflect.Type, components *Components, docReader *DocReader
 	// of the JSON payload). Filter object examples down to schema properties so
 	// `requestBody.example` never includes invalid keys.
 	schema.Example = fillOptionalBooleanExampleDefaults(
-		filterExampleToSchemaProperties(schema.Example, schema),
+		filterExampleToSchemaProperties(schema.Example, withEmbeddedProperties(schema, components)),
 		schema,
 	)
 
@@ -889,6 +893,32 @@ func fillOptionalBooleanExampleDefaults(example any, schema Schema) any {
 	}
 
 	return filled
+}
+
+// withEmbeddedProperties returns schema with the properties of the structs it embeds (its allOf references) added, so an example keeps the fields an embedded struct contributes.
+func withEmbeddedProperties(schema Schema, components *Components) Schema {
+	if len(schema.AllOf) == 0 || components == nil {
+		return schema
+	}
+	merged := schema
+	merged.Properties = make(map[string]Schema, len(schema.Properties))
+	for _, part := range schema.AllOf {
+		embedded, ok := components.Schemas[refLastSegment(part.Ref)]
+		if !ok {
+			continue
+		}
+		embedded = withEmbeddedProperties(embedded, components)
+		for k, v := range embedded.Properties {
+			merged.Properties[k] = v
+		}
+	}
+	for k, v := range schema.Properties {
+		merged.Properties[k] = v
+	}
+	if merged.Type == "" && len(merged.Properties) > 0 {
+		merged.Type = "object"
+	}
+	return merged
 }
 
 func filterExampleToSchemaProperties(example any, schema Schema) any {
@@ -1298,4 +1328,18 @@ func flattenStructFieldsWithPrefix(t reflect.Type, prefix []int) []reflect.Struc
 func validateRequires(tag string) bool {
 	fieldRules, _, _ := strings.Cut(tag, "dive")
 	return strings.Contains(fieldRules, "required")
+}
+
+// deletedExample is a DELETE's stub example: the deleted record's ID is the example of the route's last path parameter, and its object type the endpoint's.
+func deletedExample(params []Parameter, objectType string) map[string]any {
+	var id any = "example"
+	for _, p := range params {
+		if p.In == "path" && p.Example != nil {
+			id = p.Example
+		}
+	}
+	if objectType == "" {
+		objectType = "resource"
+	}
+	return map[string]any{"id": id, "object": objectType, "deleted": true}
 }

@@ -45,10 +45,12 @@ type RequestLogConfig struct {
 	TrustedProxyHops int
 	// SkipPaths (optional) are paths not logged, such as a health check. Preflight OPTIONS requests are never logged.
 	SkipPaths []string
+	// MaxBodyBytes (optional; default: DefaultMaxLoggedBodyBytes) is the largest request or response body kept on the log; a larger one is recorded as a truncation marker. Raise it when the saver stores bodies outside the log row, such as in object storage.
+	MaxBodyBytes int
 }
 
-// maxResponseLogSize caps the response body kept on the request log.
-const maxResponseLogSize = 256 << 10
+// DefaultMaxLoggedBodyBytes is the default for RequestLogConfig.MaxBodyBytes.
+const DefaultMaxLoggedBodyBytes = 256 << 10
 
 var requestLogTracer = tracing.GetTracer("apikit.middleware.request_log")
 
@@ -68,6 +70,10 @@ func RequestLog(cfg RequestLogConfig) func(http.Handler) http.Handler {
 			}
 			return v
 		}
+	}
+	maxBody := cfg.MaxBodyBytes
+	if maxBody <= 0 {
+		maxBody = DefaultMaxLoggedBodyBytes
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -93,6 +99,7 @@ func RequestLog(cfg RequestLogConfig) func(http.Handler) http.Handler {
 				ClientIP:        clientIP,
 				OccurredAt:      start,
 				PublicEndpoint:  public,
+				MaxBodyBytes:    maxBody,
 			}
 			if len(clientIP) > 0 {
 				s := clientIP.String()
@@ -123,7 +130,7 @@ func RequestLog(cfg RequestLogConfig) func(http.Handler) http.Handler {
 
 			ctx := appctx.WithRequestID(appctx.WithRequestLog(r.Context(), rl), requestID)
 			r = r.WithContext(ctx)
-			lrw := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+			lrw := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK, maxBody: maxBody}
 
 			defer func() {
 				if r.Method == http.MethodOptions || slices.Contains(cfg.SkipPaths, r.URL.Path) {
@@ -168,7 +175,7 @@ func responseForLog(lrw *loggingResponseWriter, sensitive map[string]bool) *stri
 		return nil
 	}
 	if !lrw.bodyFull {
-		s := fmt.Sprintf(`{"_truncated":true,"_original_size_exceeded":%d}`, maxResponseLogSize)
+		s := fmt.Sprintf(`{"_truncated":true,"_original_size_exceeded":%d}`, lrw.maxBody)
 		return &s
 	}
 	body := lrw.body
@@ -191,6 +198,7 @@ type loggingResponseWriter struct {
 	written    bool
 	body       []byte
 	bodyFull   bool
+	maxBody    int
 }
 
 func (lrw *loggingResponseWriter) WriteHeader(code int) {
@@ -205,7 +213,7 @@ func (lrw *loggingResponseWriter) Write(data []byte) (int, error) {
 	if !lrw.written {
 		lrw.WriteHeader(http.StatusOK)
 	}
-	if remaining := maxResponseLogSize - len(lrw.body); remaining > 0 {
+	if remaining := lrw.maxBody - len(lrw.body); remaining > 0 {
 		if len(data) <= remaining {
 			lrw.body = append(lrw.body, data...)
 			lrw.bodyFull = true

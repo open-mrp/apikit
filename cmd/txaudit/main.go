@@ -32,6 +32,7 @@ func Run(args []string, stdout, stderr io.Writer) error {
 	flags.SetOutput(stderr)
 	root := flags.String("root", ".", "directory to scan")
 	external := flags.String("external", "", "comma-separated receiver names that leave the database, added to the defaults")
+	database := flags.String("database", "", "comma-separated default receiver names that stay in the database here, such as an outbox publisher")
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
@@ -40,6 +41,11 @@ func Run(args []string, stdout, stderr io.Writer) error {
 	for _, name := range strings.Split(*external, ",") {
 		if name = strings.TrimSpace(name); name != "" {
 			cfg.ExternalReceivers = append(cfg.ExternalReceivers, name)
+		}
+	}
+	for _, name := range strings.Split(*database, ",") {
+		if name = strings.TrimSpace(name); name != "" {
+			cfg.DatabaseReceivers = append(cfg.DatabaseReceivers, name)
 		}
 	}
 	findings, callbacks, err := txaudit.Audit(*root, cfg)

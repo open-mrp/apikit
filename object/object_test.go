@@ -117,3 +117,24 @@ func TestAsyncJob_shape(t *testing.T) {
 		t.Error("IsFinal wrong")
 	}
 }
+
+func TestRegister_typesBecomeValid(t *testing.T) {
+	t.Parallel()
+	const typ object.Type = "test_widget"
+	if typ.IsValid() {
+		t.Fatal("unregistered type is valid")
+	}
+	object.Register(typ, typ)
+	if !typ.IsValid() || !object.TypeList.IsValid() {
+		t.Fatal("registered or built-in type is not valid")
+	}
+	n := 0
+	for _, v := range typ.EnumValues() {
+		if v == string(typ) {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("EnumValues lists %q %d times, want once", typ, n)
+	}
+}

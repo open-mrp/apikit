@@ -2,11 +2,13 @@ package transport
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"runtime"
 
 	apierror "github.com/open-mrp/apikit/apierror"
 	"github.com/open-mrp/apikit/appctx"
+	"github.com/open-mrp/apikit/version"
 )
 
 func RespondWithAPIError(ctx context.Context, w http.ResponseWriter, apiErr *apierror.APIError, opts ...RespondOption) {
@@ -37,5 +39,24 @@ func RespondWithAPIError(ctx context.Context, w http.ResponseWriter, apiErr *api
 		}
 	}
 
-	RespondWithJSON(ctx, w, apiErr.Status(), apiErr.Response(), opts...)
+	status, body := downgradeError(ctx, apiErr)
+	RespondWithJSON(ctx, w, status, body, opts...)
+}
+
+// downgradeError is the error response in the shape of the caller's API version: as built for the latest version, then through the error downgrades of every registered transformer down to the requested one (version.ErrorDowngrader).
+func downgradeError(ctx context.Context, apiErr *apierror.APIError) (int, any) {
+	status, resp := apiErr.Status(), apiErr.Response()
+	requested, ok := appctx.GetAPIVersionFromContext(ctx)
+	if !ok || len(version.Supported()) == 0 || requested.Equal(version.Latest()) {
+		return status, resp
+	}
+	raw, err := json.Marshal(resp)
+	if err != nil {
+		return status, resp
+	}
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		return status, resp
+	}
+	return version.TransformError(version.Latest(), requested, status, body)
 }

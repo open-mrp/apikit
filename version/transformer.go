@@ -39,6 +39,14 @@ type BodyUpgrader interface {
 	TransformRequestBody(objectType object.Type, method, route string, data map[string]any) map[string]any
 }
 
+// AnyObjectType, listed in a Transformer's ObjectTypes, makes it handle every response and request, including those of endpoints that declare no object type. Use it for a change the framework made to every endpoint at once, such as the list envelope or the deleted stub.
+const AnyObjectType object.Type = "*"
+
+// ErrorDowngrader is an optional interface a Transformer implements when a version changed the error response: its body or its HTTP status. It downgrades an error response built at FromVersion to the ToVersion shape. It runs on every error response in its version range, whatever the endpoint's object type.
+type ErrorDowngrader interface {
+	TransformError(status int, body map[string]any) (int, map[string]any)
+}
+
 // TransformerRegistry manages a collection of version transformers.
 type TransformerRegistry struct {
 	transformers []Transformer
@@ -167,7 +175,29 @@ func (r *TransformerRegistry) ForcedIncludes(from, to APIVersion, objectType obj
 
 // handlesObjectType checks if the transformer handles the given object type.
 func (r *TransformerRegistry) handlesObjectType(t Transformer, objectType object.Type) bool {
-	return slices.Contains(t.ObjectTypes(), objectType)
+	types := t.ObjectTypes()
+	return slices.Contains(types, AnyObjectType) || (objectType != "" && slices.Contains(types, objectType))
+}
+
+// TransformError applies, newest to oldest, the error downgrades of every transformer between the 'from' and 'to' versions.
+func (r *TransformerRegistry) TransformError(from, to APIVersion, status int, body map[string]any) (int, map[string]any) {
+	if from.Equal(to) || to.After(from) {
+		return status, body
+	}
+	for _, t := range r.transformers {
+		if t.FromVersion().After(from) || t.ToVersion().Before(to) {
+			continue
+		}
+		if downgrader, ok := t.(ErrorDowngrader); ok {
+			status, body = downgrader.TransformError(status, body)
+		}
+	}
+	return status, body
+}
+
+// TransformError applies error downgrades from the default registry.
+func TransformError(from, to APIVersion, status int, body map[string]any) (int, map[string]any) {
+	return DefaultRegistry.TransformError(from, to, status, body)
 }
 
 // DefaultRegistry is the global transformer registry.

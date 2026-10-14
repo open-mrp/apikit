@@ -37,6 +37,8 @@ type RequestLog struct {
 	SkipSave                bool            `json:"-"`
 	Hidden                  bool            `json:"-"` // persisted but omitted from the default request-log listing; set from the endpoint's HideFromRequestLog flag
 	SensitiveResponseFields map[string]bool `json:"-"`
+	// MaxBodyBytes is the largest request or response body kept on this log; a larger one is recorded as a truncation marker. The request-log middleware sets it from its config.
+	MaxBodyBytes int `json:"-"`
 	// Identity is the caller's identity as the app's authentication set it, for the app's request log saver to record app-specific details such as the account.
 	Identity any `json:"-"`
 }

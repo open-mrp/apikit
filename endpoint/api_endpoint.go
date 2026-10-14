@@ -250,12 +250,10 @@ func (e *APIEndpoint[TReq, TResp]) Execute(w http.ResponseWriter, r *http.Reques
 	req = httptransport.AllocIfPtr(req)
 
 	// An older version's query string is upgraded before binding, the same way its body is before decoding.
-	if e.ObjectType != "" {
-		if requestVersion, ok := appctx.GetAPIVersionFromContext(ctx); ok && !requestVersion.Equal(version.Latest()) {
-			before := r.URL.Query().Encode()
-			if after := version.TransformQuery(requestVersion, version.Latest(), e.ObjectType, e.Route, r.URL.Query()).Encode(); after != before {
-				r.URL.RawQuery = after
-			}
+	if requestVersion, ok := appctx.GetAPIVersionFromContext(ctx); ok && !requestVersion.Equal(version.Latest()) {
+		before := r.URL.Query().Encode()
+		if after := version.TransformQuery(requestVersion, version.Latest(), e.ObjectType, e.Route, r.URL.Query()).Encode(); after != before {
+			r.URL.RawQuery = after
 		}
 	}
 
@@ -281,14 +279,12 @@ func (e *APIEndpoint[TReq, TResp]) Execute(w http.ResponseWriter, r *http.Reques
 		// (containing a dot) apply only when their parent path is already in
 		// the tree — forcing them unconditionally would expand sub-resources
 		// the caller never asked for, which is itself a shape change.
-		if e.ObjectType != "" {
-			if requestVersion, ok := appctx.GetAPIVersionFromContext(ctx); ok && !requestVersion.Equal(version.Latest()) {
-				for _, key := range version.ForcedIncludes(version.Latest(), requestVersion, e.ObjectType) {
-					if idx := strings.LastIndex(key, "."); idx >= 0 && !includeTree.Has(key[:idx]) {
-						continue
-					}
-					includeTree.Add(key)
+		if requestVersion, ok := appctx.GetAPIVersionFromContext(ctx); ok && !requestVersion.Equal(version.Latest()) {
+			for _, key := range version.ForcedIncludes(version.Latest(), requestVersion, e.ObjectType) {
+				if idx := strings.LastIndex(key, "."); idx >= 0 && !includeTree.Has(key[:idx]) {
+					continue
 				}
+				includeTree.Add(key)
 			}
 		}
 		// Expose the requested includes to the service handler so it can forward
@@ -317,7 +313,10 @@ func (e *APIEndpoint[TReq, TResp]) Execute(w http.ResponseWriter, r *http.Reques
 		}
 		jsonBodyBytes = bodyBytes
 		if rl, ok := appctx.GetRequestLog(ctx); ok && len(bodyBytes) > 0 {
-			const maxBodyLogSize = 256 << 10 // 256 KB
+			maxBodyLogSize := rl.MaxBodyBytes
+			if maxBodyLogSize <= 0 {
+				maxBodyLogSize = 256 << 10
+			}
 			if len(bodyBytes) > maxBodyLogSize {
 				s := fmt.Sprintf(`{"_truncated":true,"_original_size":%d}`, len(bodyBytes))
 				rl.BodyJSON = &s
@@ -345,25 +344,23 @@ func (e *APIEndpoint[TReq, TResp]) Execute(w http.ResponseWriter, r *http.Reques
 	} else if httptransport.ShouldDecodeBody(r) {
 		bytesForNull = jsonBodyBytes
 
-		// Transform request body if versioned and ObjectType is set
-		if e.ObjectType != "" {
-			if requestVersion, ok := appctx.GetAPIVersionFromContext(ctx); ok {
-				if !requestVersion.Equal(version.Latest()) {
-					var err error
-					r, err = e.transformRequestBody(r, requestVersion, version.Latest())
-					if err != nil {
-						recordAndRespondAPIError(ctx, w, span, "version_transform", apierror.NewParameterInvalidError("", err.Error()))
-						return
-					}
-					tb, err := io.ReadAll(r.Body)
-					_ = r.Body.Close()
-					if err != nil {
-						recordAndRespondAPIError(ctx, w, span, "body_read", apierror.NewParameterInvalidError("", fmt.Sprintf("Failed to read request body: %v", err)))
-						return
-					}
-					bytesForNull = tb
-					r.Body = io.NopCloser(bytes.NewReader(tb))
+		// Upgrade an older version's request body to the latest shape before decoding.
+		if requestVersion, ok := appctx.GetAPIVersionFromContext(ctx); ok {
+			if !requestVersion.Equal(version.Latest()) {
+				var err error
+				r, err = e.transformRequestBody(r, requestVersion, version.Latest())
+				if err != nil {
+					recordAndRespondAPIError(ctx, w, span, "version_transform", apierror.NewParameterInvalidError("", err.Error()))
+					return
 				}
+				tb, err := io.ReadAll(r.Body)
+				_ = r.Body.Close()
+				if err != nil {
+					recordAndRespondAPIError(ctx, w, span, "body_read", apierror.NewParameterInvalidError("", fmt.Sprintf("Failed to read request body: %v", err)))
+					return
+				}
+				bytesForNull = tb
+				r.Body = io.NopCloser(bytes.NewReader(tb))
 			}
 		}
 
@@ -476,11 +473,9 @@ func (e *APIEndpoint[TReq, TResp]) Execute(w http.ResponseWriter, r *http.Reques
 	respPayload := sensitive.Redact(ctx, any(resp))
 
 	// Downgrade the response shape when the caller is on an older API version.
-	if e.ObjectType != "" {
-		if requestVersion, ok := appctx.GetAPIVersionFromContext(ctx); ok && !requestVersion.Equal(version.Latest()) {
-			if transformed, ok := transformResponsePayload(respPayload, version.Latest(), requestVersion, e.ObjectType); ok {
-				respPayload = transformed
-			}
+	if requestVersion, ok := appctx.GetAPIVersionFromContext(ctx); ok && !requestVersion.Equal(version.Latest()) {
+		if transformed, ok := transformResponsePayload(respPayload, version.Latest(), requestVersion, e.ObjectType); ok {
+			respPayload = transformed
 		}
 	}
 	httptransport.RespondWithJSON(ctx, w, e.SuccessStatusCode, respPayload, respondOpts...)

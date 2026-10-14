@@ -73,3 +73,27 @@ func TestAudit_KitIsClean(t *testing.T) {
 		t.Errorf("%s: %s: %s", f.Pos, f.Kind, f.Detail)
 	}
 }
+
+// An app whose publisher writes to a transactional outbox names it as staying in the database.
+func TestAudit_DatabaseReceiversLeaveTheDefaults(t *testing.T) {
+	dir := t.TempDir()
+	src := `package fixture
+
+func (s *svc) publishes() error {
+	return s.txManager.WithTx(nil, func(ctx any, f factory) error {
+		return s.publisher.Publish(ctx)
+	})
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "fixture.go"), []byte(src), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	findings, closures, err := Audit(dir, Config{})
+	if err != nil || closures != 1 || len(findings) != 1 {
+		t.Fatalf("defaults: closures %d findings %+v err %v", closures, findings, err)
+	}
+	findings, _, err = Audit(dir, Config{DatabaseReceivers: []string{"publisher"}})
+	if err != nil || len(findings) != 0 {
+		t.Fatalf("publisher in the database: findings %+v err %v", findings, err)
+	}
+}

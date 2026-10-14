@@ -3,6 +3,7 @@ package sqs
 
 import (
 	"context"
+	"strings"
 
 	apierror "github.com/open-mrp/apikit/apierror"
 	"github.com/open-mrp/apikit/tracing"
@@ -33,10 +34,10 @@ type Client struct {
 	queueURL string
 }
 
-// NewClient creates an SQS client for the given region, bound to queueURL.
+// NewClient creates an SQS client for the given region, bound to queueURLOrName. A full http(s) queue URL is used as-is; anything else is a queue name, resolved with GetQueueUrl, so config can name the queue without the account ID.
 //
 // IMDS is disabled for the same reason as the S3 client: pods get credentials via IRSA (or static keys in dev), never the node instance role, and leaving IMDS in the chain blocks credential resolution for the full deadline on every call.
-func NewClient(ctx context.Context, region, queueURL string) (*Client, *apierror.APIError) {
+func NewClient(ctx context.Context, region, queueURLOrName string) (*Client, *apierror.APIError) {
 	cfg, err := awsconfig.LoadDefaultConfig(ctx,
 		awsconfig.WithRegion(region),
 		awsconfig.WithEC2IMDSClientEnableState(imds.ClientDisabled),
@@ -44,7 +45,16 @@ func NewClient(ctx context.Context, region, queueURL string) (*Client, *apierror
 	if err != nil {
 		return nil, apierror.NewInternalError(err, "Failed to load AWS configuration for SQS.")
 	}
-	return &Client{client: sqs.NewFromConfig(cfg), queueURL: queueURL}, nil
+	client := sqs.NewFromConfig(cfg)
+	queueURL := queueURLOrName
+	if !strings.HasPrefix(queueURLOrName, "https://") && !strings.HasPrefix(queueURLOrName, "http://") {
+		out, err := client.GetQueueUrl(ctx, &sqs.GetQueueUrlInput{QueueName: aws.String(queueURLOrName)})
+		if err != nil {
+			return nil, apierror.NewInternalError(err, "Failed to resolve SQS queue URL.")
+		}
+		queueURL = aws.ToString(out.QueueUrl)
+	}
+	return &Client{client: client, queueURL: queueURL}, nil
 }
 
 // Receive long-polls the queue for up to maxMessages, waiting up to waitSeconds for a message.

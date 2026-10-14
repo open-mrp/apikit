@@ -21,6 +21,7 @@ import (
 	"go/token"
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -35,6 +36,8 @@ var DefaultExternalReceivers = []string{
 type Config struct {
 	// ExternalReceivers (optional) adds the app's own receiver names to DefaultExternalReceivers, such as the field holding a payment provider's client.
 	ExternalReceivers []string
+	// DatabaseReceivers (optional) removes names from DefaultExternalReceivers that the app knows stay in the database, such as a publisher that writes to a transactional outbox.
+	DatabaseReceivers []string
 }
 
 // Finding is one effect a rollback would not undo.
@@ -50,7 +53,12 @@ type Finding struct {
 
 // Audit inspects every closure passed to WithTx, withTx or WithTxSavepoint under root and returns the effects in them a rollback would not undo, and how many callbacks it read.
 func Audit(root string, cfg Config) ([]Finding, int, error) {
-	external := append(append([]string{}, DefaultExternalReceivers...), cfg.ExternalReceivers...)
+	var external []string
+	for _, name := range append(append([]string{}, DefaultExternalReceivers...), cfg.ExternalReceivers...) {
+		if !slices.Contains(cfg.DatabaseReceivers, name) {
+			external = append(external, name)
+		}
+	}
 	fset := token.NewFileSet()
 	var findings []Finding
 	closures := 0
