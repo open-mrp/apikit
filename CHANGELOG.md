@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/open-mrp/apikit/compare/v0.1.1...v0.2.0) (2026-10-14)
+
+
+### Features
+
+* gaps found adopting apikit in the OpenMRP API ([#5](https://github.com/open-mrp/apikit/issues/5)) ([4dde16e](https://github.com/open-mrp/apikit/commit/4dde16e83a8154f299ad778250016cde2cfcebd9))
+
 ## [0.1.1](https://github.com/open-mrp/apikit/compare/v0.1.0...v0.1.1) (2026-10-10)
 
 
