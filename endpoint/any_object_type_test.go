@@ -18,9 +18,11 @@ var olderVersion = version.MustNew("1.0.forge-preview.7")
 // markEveryResponse downgrades every response to olderVersion, whatever its endpoint's object type.
 type markEveryResponse struct{}
 
-func (markEveryResponse) FromVersion() version.APIVersion { return version.MustParse("1.0.forge-preview.8") }
-func (markEveryResponse) ToVersion() version.APIVersion   { return olderVersion }
-func (markEveryResponse) ObjectTypes() []object.Type      { return []object.Type{version.AnyObjectType} }
+func (markEveryResponse) FromVersion() version.APIVersion {
+	return version.MustParse("1.0.forge-preview.8")
+}
+func (markEveryResponse) ToVersion() version.APIVersion { return olderVersion }
+func (markEveryResponse) ObjectTypes() []object.Type    { return []object.Type{version.AnyObjectType} }
 func (markEveryResponse) Transform(_ object.Type, d map[string]any) map[string]any {
 	d["downgraded"] = true
 	return d

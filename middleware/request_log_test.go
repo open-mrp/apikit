@@ -78,3 +78,34 @@ func TestRequestLog(t *testing.T) {
 		t.Errorf("skipped requests were saved: %d", len(saver.saved))
 	}
 }
+
+func TestRequestLog_MaxBodyBytes(t *testing.T) {
+	t.Parallel()
+
+	body := `{"data":"` + strings.Repeat("x", 300<<10) + `"}`
+	for _, tc := range []struct {
+		name      string
+		max       int
+		truncated bool
+	}{
+		{"default cap", 0, true},
+		{"raised cap", 1 << 20, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			saver := &captureSaver{}
+			h := RequestLog(RequestLogConfig{Saver: saver, MaxBodyBytes: tc.max, Logger: slog.New(slog.DiscardHandler)})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				rl, _ := appctx.GetRequestLog(r.Context())
+				if want := max(tc.max, DefaultMaxLoggedBodyBytes); rl.MaxBodyBytes != want {
+					t.Errorf("MaxBodyBytes %d, want %d", rl.MaxBodyBytes, want)
+				}
+				_, _ = w.Write([]byte(body))
+			}))
+			h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/things", nil))
+			got := saver.saved[0].ResponseJSON
+			if got == nil || strings.Contains(*got, "_truncated") != tc.truncated {
+				t.Errorf("truncated = %v, want %v", got != nil && strings.Contains(*got, "_truncated"), tc.truncated)
+			}
+		})
+	}
+}
