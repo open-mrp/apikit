@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.0](https://github.com/open-mrp/apikit/compare/v0.2.0...v0.3.0) (2026-10-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* dates as strings, body enum errors as 422, internal fields ([#7](https://github.com/open-mrp/apikit/issues/7))
+
+### Features
+
+* dates as strings, body enum errors as 422, internal fields ([#7](https://github.com/open-mrp/apikit/issues/7)) ([2da39cb](https://github.com/open-mrp/apikit/commit/2da39cb7d452f344c70bd972796a7d9018b73385))
+
 ## [0.2.0](https://github.com/open-mrp/apikit/compare/v0.1.1...v0.2.0) (2026-10-14)
 
 
